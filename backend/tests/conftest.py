@@ -1,0 +1,125 @@
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql+psycopg://support:support@localhost:5433/support_assistant_test"
+)
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine, text  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
+from app import models  # noqa: E402
+from app.auth.security import create_access_token  # noqa: E402
+from app.config import settings  # noqa: E402
+from app.db import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+
+TEST_DB_URL = settings.database_url
+_ADMIN_DB_URL = TEST_DB_URL.rsplit("/", 1)[0] + "/postgres"
+_TEST_DB_NAME = TEST_DB_URL.rsplit("/", 1)[1]
+
+
+def _ensure_test_database_exists() -> None:
+    admin_engine = create_engine(_ADMIN_DB_URL, isolation_level="AUTOCOMMIT")
+    with admin_engine.connect() as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": _TEST_DB_NAME}
+        ).first()
+        if not exists:
+            conn.execute(text(f'CREATE DATABASE "{_TEST_DB_NAME}"'))
+    admin_engine.dispose()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _setup_database():
+    _ensure_test_database_exists()
+    engine = create_engine(TEST_DB_URL)
+    with engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        conn.commit()
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    engine.dispose()
+    yield
+
+
+@pytest.fixture()
+def db_session():
+    engine = create_engine(TEST_DB_URL)
+    TestSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    session = TestSessionLocal()
+    for table in reversed(Base.metadata.sorted_tables):
+        session.execute(table.delete())
+    session.commit()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture()
+def client(db_session):
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def make_user(db_session):
+    def _make(username: str = "alice", display_name: str = "Alice") -> models.User:
+        user = models.User(username=username, display_name=display_name)
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
+        return user
+
+    return _make
+
+
+@pytest.fixture()
+def make_transaction(db_session):
+    def _make(
+        user: models.User,
+        txn_id: str,
+        status: str = "SUCCESS",
+        failure_reason: str | None = None,
+        type: str = "BUY",
+        product: str = "GOLD24",
+        amount: float = 100,
+        payment_method: str = "UPI",
+    ) -> models.Transaction:
+        txn = models.Transaction(
+            id=txn_id,
+            user_id=user.id,
+            type=type,
+            product=product,
+            amount=amount,
+            status=status,
+            failure_reason=failure_reason,
+            payment_method=payment_method,
+        )
+        db_session.add(txn)
+        db_session.commit()
+        db_session.refresh(txn)
+        return txn
+
+    return _make
+
+
+@pytest.fixture()
+def auth_headers():
+    def _headers(user: models.User) -> dict[str, str]:
+        token = create_access_token(str(user.id))
+        return {"Authorization": f"Bearer {token}"}
+
+    return _headers
