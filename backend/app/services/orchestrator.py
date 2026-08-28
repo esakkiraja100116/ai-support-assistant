@@ -41,7 +41,7 @@ def chat_turn(db: Session, user: User, message: str, history: list[ChatMessage])
     tool_name = call.function.name
 
     if tool_name == "search_knowledge_base":
-        return _handle_knowledge_base(db, call, message)
+        return _handle_knowledge_base(db, message)
 
     if tool_name == "get_recent_transactions":
         return _handle_recent_transactions(db, user, message, history)
@@ -50,13 +50,11 @@ def chat_turn(db: Session, user: User, message: str, history: list[ChatMessage])
     return ChatResponse.error("unsupported_tool", "The assistant tried to use an unsupported action.")
 
 
-def _handle_knowledge_base(db: Session, call, fallback_query: str) -> ChatResponse:
-    try:
-        args = json.loads(call.function.arguments or "{}")
-    except json.JSONDecodeError:
-        args = {}
-    query = args.get("query") or fallback_query
-
+def _handle_knowledge_base(db: Session, query: str) -> ChatResponse:
+    # Always search on the customer's own message verbatim - letting the model
+    # rephrase it before searching measurably hurt retrieval (see scripts/eval_kb.py):
+    # rewording even slightly (dropping "my", "How can I" -> "how to") was enough to
+    # push genuine matches below the similarity threshold in most tested cases.
     try:
         result = kb_service.search_knowledge_base(db, query)
     except Exception:

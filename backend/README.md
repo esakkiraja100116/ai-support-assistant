@@ -47,6 +47,7 @@ See the root [README](../README.md#architecture) for the full request-flow walkt
 - `app/services/tools_schema.py` — every tool schema and the system prompt, in one place. None of them accept a user-id parameter, so the model can never supply or leak one.
 - `app/services/orchestrator.py` — the whole `POST /chat` decision tree: intent routing, knowledge-base grounding + threshold guard, and the transaction resolve-or-list step.
 - `scripts/seed.py` — idempotent (truncate + reinsert) seed of 2 users, 7 transactions each across all type/status combinations, and 18 FAQ articles, embedded on their **question text only** (see root README's embeddings section for why).
+- `scripts/eval_kb.py` — a small standing retrieval eval (`python -m scripts.eval_kb`), not part of `pytest`. Run it by hand after touching anything in the KB retrieval path (embedding input, threshold, seed content) — it's what caught the query-rephrasing regression documented in the root README.
 
 ## Trade-offs / what I'd change for production
 

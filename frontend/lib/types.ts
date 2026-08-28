@@ -53,6 +53,13 @@ export interface SeededUser {
   display_name: string;
 }
 
+export interface FaqArticle {
+  id: number;
+  question: string;
+  answer: string;
+  category: string | null;
+}
+
 export interface AuthSession {
   accessToken: string;
   userId: string;

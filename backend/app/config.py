@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 120
-    kb_similarity_threshold: float = 0.75
+    kb_similarity_threshold: float = 0.65
     cors_origins: str = "http://localhost:3000"
 
     @property

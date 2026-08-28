@@ -12,18 +12,10 @@ SEARCH_KNOWLEDGE_BASE = {
         "name": "search_knowledge_base",
         "description": (
             "Search the approved customer support knowledge base for information "
-            "relevant to a general product, policy, or how-to question."
+            "relevant to a general product, policy, or how-to question. The customer's "
+            "own message is always used verbatim as the search text."
         ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": "The customer's question, rephrased as a search query if helpful.",
-                },
-            },
-            "required": ["query"],
-        },
+        "parameters": {"type": "object", "properties": {}},
     },
 }
 

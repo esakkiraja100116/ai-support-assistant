@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listUsers } from "@/lib/api";
 import { SeededUser } from "@/lib/types";
@@ -63,6 +64,10 @@ export function LoginScreen({ onLogin }: Props) {
         {!loadingUsers && users.length === 0 && !error && (
           <p className="muted">No seeded accounts found. Run the backend seed script.</p>
         )}
+
+        <Link href="/faq" className="faq-link">
+          Browse the knowledge base
+        </Link>
       </div>
     </div>
   );

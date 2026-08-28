@@ -2,15 +2,6 @@ from app.models import SupportArticle
 from app.services import kb_service, orchestrator
 
 
-class _FakeToolCall:
-    def __init__(self, arguments: str):
-        class _Function:
-            name = "search_knowledge_base"
-
-        self.function = _Function()
-        self.function.arguments = arguments
-
-
 def _make_article(db_session, question, answer, embedding):
     article = SupportArticle(question=question, answer=answer, category="test", tags=["test"], embedding=embedding)
     db_session.add(article)
@@ -55,8 +46,7 @@ def test_orchestrator_skips_second_llm_call_when_not_grounded(db_session, monkey
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", _unexpected_call)
 
-    tool_call = _FakeToolCall('{"query": "something unrelated"}')
-    result = orchestrator._handle_knowledge_base(db_session, tool_call, "something unrelated")
+    result = orchestrator._handle_knowledge_base(db_session, "something unrelated")
 
     assert result.type.value == "TEXT_ANSWER"
     assert result.data["grounded"] is False

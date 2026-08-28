@@ -1,4 +1,4 @@
-import { ChatHistoryEntry, ChatResponse, SeededUser } from "./types";
+import { ChatHistoryEntry, ChatResponse, FaqArticle, SeededUser } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -67,4 +67,8 @@ export function explainTransaction(token: string, transactionId: string): Promis
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
   });
+}
+
+export function listFaqArticles(): Promise<FaqArticle[]> {
+  return request<FaqArticle[]>("/faq");
 }

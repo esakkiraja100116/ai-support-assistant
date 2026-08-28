@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useChat } from "@/hooks/useChat";
 import { AuthSession } from "@/lib/types";
 import { ChatInput } from "./ChatInput";
@@ -21,6 +22,9 @@ export function ChatWindow({ session, conversationId, onLogout, onNewChat }: Pro
       <header className="chat-header">
         <span>Signed in as {session.displayName}</span>
         <div className="header-actions">
+          <Link href="/faq" className="text-button">
+            FAQ
+          </Link>
           <button className="text-button" onClick={onNewChat}>
             New chat
           </button>

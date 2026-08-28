@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, chat, transactions
+from app.routers import auth, chat, faq, transactions
 
 app = FastAPI(title="Support Assistant API")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(transactions.router)
+app.include_router(faq.router)
 
 
 @app.get("/health")
