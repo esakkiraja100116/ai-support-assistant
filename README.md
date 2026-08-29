@@ -101,10 +101,12 @@ Conversations and their messages are persisted server-side in Postgres (`convers
 cd backend && pytest
 ```
 
-43 tests, all deterministic and offline (every OpenAI call is monkeypatched at the `llm_client` seam — no network access or API key needed). The two highest-value ones:
+60 tests, all deterministic and offline (every OpenAI call is monkeypatched at the `llm_client` seam — no network access or API key needed). The two highest-value ones:
 
 - **`test_transaction_authz.py`** — user A's JWT can fetch their own transaction (200) but never user B's (404), and `/transactions/recent` never returns another user's rows. This is the literal trust boundary described above, under test.
 - **`test_kb_grounding.py`** — asserts the below-threshold path returns `grounded: false` *and* that the second ("write the grounded answer") LLM call is never invoked in that case — the no-hallucination guard is tested as a structural fact, not just a prompt.
+
+Beyond `pytest`, `docs/real-scenario-testing.md` documents a separate, real (non-mocked) 60-question eval across FAQ, transaction, and out-of-scope scenarios, run by hand after touching routing/prompt code — see that doc for the methodology, and [How to Evaluate and Select the Right LLM for Your GenAI Application](https://www.freecodecamp.org/news/how-to-evaluate-and-select-the-right-llm-for-your-genai-application/) for general background on LLM evaluation approaches this drew on.
 
 ## What I would improve for production
 
