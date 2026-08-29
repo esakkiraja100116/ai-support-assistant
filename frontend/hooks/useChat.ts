@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, explainTransaction, getConversation, sendChatMessage } from "@/lib/api";
+import { ApiError, getConversation, streamChatMessage, streamExplainTransaction } from "@/lib/api";
 import { persistedToUIMessages } from "@/lib/messageMapping";
-import { AuthSession, ChatUIMessage } from "@/lib/types";
+import { AuthSession, ChatResponse, ChatUIMessage } from "@/lib/types";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -33,6 +33,54 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       .catch(() => setMessages([]));
   }, [session, conversationId]);
 
+  // Each SSE "delta" event carries the full text-so-far, accumulated on the
+  // backend (not an incremental piece) - render it directly, no client-side
+  // concatenation. Produces the same visible typewriter effect ("Hi" ->
+  // "Hi Alice" -> "Hi Alice!" -> ...) for both the chat and
+  // transaction-explain streams.
+  const appendDelta = useCallback((id: string, textSoFar: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text: textSoFar, streaming: true } : m)));
+  }, []);
+
+  const finalizeMessage = useCallback((id: string, response: ChatResponse) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id ? { ...m, status: "sent", text: response.message, response, streaming: false } : m
+      )
+    );
+  }, []);
+
+  const failMessage = useCallback((id: string, message: string) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, status: "error", text: message, streaming: false } : m)));
+  }, []);
+
+  // Once "done" (or an error) lands for a message, that turn is over - any
+  // further delta somehow arriving after it (a stray late event) must not
+  // overwrite the already-finalized text, which is what caused the visible
+  // flicker right after a response completed.
+  const makeCallbacks = useCallback(
+    (id: string) => {
+      let finished = false;
+      return {
+        onDelta: (delta: string) => {
+          if (!finished) appendDelta(id, delta);
+        },
+        onDone: (response: ChatResponse) => {
+          if (finished) return;
+          finished = true;
+          finalizeMessage(id, response);
+          onTurnComplete?.();
+        },
+        onError: (message: string) => {
+          if (finished) return;
+          finished = true;
+          failMessage(id, message);
+        },
+      };
+    },
+    [appendDelta, finalizeMessage, failMessage, onTurnComplete]
+  );
+
   const sendMessage = useCallback(
     async (text: string) => {
       if (!session || !conversationId) return;
@@ -47,20 +95,9 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       };
       setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
 
-      try {
-        const response = await sendChatMessage(session.accessToken, text, conversationId);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, status: "sent", text: response.message, response } : m
-          )
-        );
-        onTurnComplete?.();
-      } catch (err) {
-        const message = err instanceof ApiError ? err.message : "Something went wrong.";
-        setMessages((prev) => (prev.map((m) => (m.id === assistantId ? { ...m, status: "error", text: message } : m))));
-      }
+      await streamChatMessage(session.accessToken, text, conversationId, makeCallbacks(assistantId));
     },
-    [session, conversationId, onTurnComplete]
+    [session, conversationId, makeCallbacks]
   );
 
   const selectTransaction = useCallback(
@@ -76,59 +113,30 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       };
       setMessages((prev) => [...prev, placeholder]);
 
-      try {
-        const response = await explainTransaction(session.accessToken, transactionId, conversationId);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId ? { ...m, status: "sent", text: response.message, response } : m
-          )
-        );
-        onTurnComplete?.();
-      } catch (err) {
-        const message = err instanceof ApiError ? err.message : "Something went wrong.";
-        setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, status: "error", text: message } : m)));
-      }
+      await streamExplainTransaction(session.accessToken, transactionId, conversationId, makeCallbacks(assistantId));
     },
-    [session, conversationId, onTurnComplete]
+    [session, conversationId, makeCallbacks]
   );
 
   const retry = useCallback(
     async (messageId: string) => {
       const target = messages.find((m) => m.id === messageId);
-      if (!target?.retry) return;
+      if (!target?.retry || !session) return;
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "pending", text: "" } : m)));
 
       if (target.retry.kind === "chat") {
-        if (!session || !conversationId) return;
-        try {
-          const response = await sendChatMessage(session.accessToken, target.retry.message, conversationId);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === messageId ? { ...m, status: "sent", text: response.message, response } : m
-            )
-          );
-          onTurnComplete?.();
-        } catch (err) {
-          const message = err instanceof ApiError ? err.message : "Something went wrong.";
-          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "error", text: message } : m)));
-        }
+        if (!conversationId) return;
+        await streamChatMessage(session.accessToken, target.retry.message, conversationId, makeCallbacks(messageId));
       } else {
-        if (!session) return;
-        try {
-          const response = await explainTransaction(session.accessToken, target.retry.transactionId, conversationId);
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === messageId ? { ...m, status: "sent", text: response.message, response } : m
-            )
-          );
-          onTurnComplete?.();
-        } catch (err) {
-          const message = err instanceof ApiError ? err.message : "Something went wrong.";
-          setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "error", text: message } : m)));
-        }
+        await streamExplainTransaction(
+          session.accessToken,
+          target.retry.transactionId,
+          conversationId,
+          makeCallbacks(messageId)
+        );
       }
     },
-    [messages, session, conversationId, onTurnComplete]
+    [messages, session, conversationId, makeCallbacks]
   );
 
   return { messages, sendMessage, selectTransaction, retry };

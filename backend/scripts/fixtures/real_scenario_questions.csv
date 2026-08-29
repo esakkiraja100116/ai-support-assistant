@@ -1,0 +1,61 @@
+id,category,question,expected_type,expected_contains,notes
+1,faq_single,How do I sell my gold?,TEXT_ANSWER,Portfolio > Sell,Article 1
+2,faq_single,What's the process to buy gold on this platform?,TEXT_ANSWER,GOLD24;UPI,Article 2
+3,faq_single,How does the recurring savings plan work?,TEXT_ANSWER,weekly;monthly,Article 3
+4,faq_single,What documents do I need for KYC?,TEXT_ANSWER,photo ID;proof of address,Article 4
+5,faq_single,Why do transactions sometimes fail?,TEXT_ANSWER,insufficient funds;declined,Article 5
+6,faq_single,How long does it take to get my payout?,TEXT_ANSWER,1-2 business days,Article 6
+7,faq_single,What fees does the platform charge?,TEXT_ANSWER,0.5%-1%,Article 7
+8,faq_single,What's the difference between 24K and 22K gold?,TEXT_ANSWER,99.9%;91.6%,Article 8
+9,faq_single,Where is my gold stored?,TEXT_ANSWER,insur;vault,Article 9
+10,faq_single,How can I cancel my recurring plan?,TEXT_ANSWER,Recurring Plans;Cancel,Article 10
+11,faq_single,What's the minimum amount I can invest?,TEXT_ANSWER,100,Article 11
+12,faq_single,Is there a referral bonus?,TEXT_ANSWER,referral code;Rewards,Article 12
+13,faq_single,How do I change my payout bank account?,TEXT_ANSWER,Payment Methods;Bank Accounts,Article 13
+14,faq_single,Can I get physical gold delivered to me?,TEXT_ANSWER,physical;delivery fee,Article 14
+15,faq_single,What happens if I place an order when the market is closed?,TEXT_ANSWER,queued;next available,Article 15
+16,faq_combined,How do I buy AND sell gold on this platform?,TEXT_ANSWER,Portfolio > Sell;GOLD24,Articles 2+1
+17,faq_combined,"What fees do you charge, and what's the minimum investment amount?",TEXT_ANSWER,0.5%-1%;100,Articles 7+11
+18,faq_combined,"How is my gold stored, and is my investment insured?",TEXT_ANSWER,vault;insur,Articles 9+17
+19,faq_combined,"What KYC documents do I need, and why do transactions fail?",TEXT_ANSWER,proof of address;declined,Articles 4+5
+20,faq_combined,"Can I take physical delivery, and how do I sell my gold?",TEXT_ANSWER,delivery fee;Portfolio > Sell,Articles 14+1
+21,faq_combined,"How do I reset my password, and how do I contact human support?",TEXT_ANSWER,Forgot password;Talk to an agent,Articles 16+18
+22,faq_combined,"What's the difference between 24K and 22K gold, and how long do payouts take?",TEXT_ANSWER,99.9%;1-2 business days,Articles 8+6
+23,faq_combined,"How does recurring savings work, and how do I cancel it?",TEXT_ANSWER,weekly;Cancel,Articles 3+10
+24,faq_combined,"Is my investment insured, and what happens if markets are closed?",TEXT_ANSWER,insur;queued,Articles 17+15
+25,faq_combined,"Do you have a referral program, and how do I update my bank account?",TEXT_ANSWER,referral code;Bank Accounts,Articles 12+13
+26,transaction,Can you show me my recent transactions?,TRANSACTION_SELECTION,txn_1007,list of all 7
+27,transaction,Why did my last transaction fail?,TRANSACTION_EXPLANATION,Insufficient funds,txn_1007
+28,transaction,What happened to my first transaction?,TRANSACTION_EXPLANATION,declined,txn_1001
+29,transaction,Is there a pending transaction on my account?,TRANSACTION_EXPLANATION,PENDING,txn_1005
+30,transaction,How many of my transactions were successful?,TRANSACTION_SUMMARY,3,3 SUCCESS txns
+31,transaction,How many of my transactions failed?,TRANSACTION_SUMMARY,2,2 FAILED txns
+32,transaction,What transaction was refunded to me?,TRANSACTION_EXPLANATION,REFUNDED,txn_1006
+33,transaction,How much did I pay for my last successful purchase?,TRANSACTION_EXPLANATION,1000,txn_1004
+34,transaction,What payment method did I use for my failed transactions?,TRANSACTION_SUMMARY,Net Banking;Credit Card,txn_1007+txn_1001
+35,transaction,Tell me about my sell transactions.,TRANSACTION_SUMMARY,REFUNDED;SUCCESS,txn_1006+txn_1003
+36,transaction,What's the total amount from my successful transactions?,TRANSACTION_SUMMARY,5300,1000+1800+2500
+37,transaction,On what date was my most recent transaction created?,TRANSACTION_EXPLANATION,Aug,txn_1007
+38,transaction,What was my very first transaction on this platform?,TRANSACTION_EXPLANATION,5000,txn_1001
+39,transaction,How much gold have I bought successfully in GOLD24?,TRANSACTION_SUMMARY,2500,txn_1002+txn_1004
+40,transaction,What's the status of transaction txn_1005?,TRANSACTION_EXPLANATION,PENDING,txn_1005
+41,combined,Can you check my transactions and also tell me the fees you charge?,TEXT_ANSWER_OR_TRANSACTION,0.5%-1%;txn_1007,transaction + FAQ 7
+42,combined,Can you please check my transaction and assist me to buy the gold?,TEXT_ANSWER_OR_TRANSACTION,txn_1007;GOLD24,transaction + FAQ 2
+43,combined,"Why did my last transaction fail, and what KYC documents do I need to avoid that next time?",TEXT_ANSWER_OR_TRANSACTION,Insufficient funds;proof of address,transaction + FAQ 4
+44,combined,Show me my recent transactions and explain how the recurring savings plan works.,TEXT_ANSWER_OR_TRANSACTION,txn_1007;weekly,transaction + FAQ 3
+45,combined,"I want to sell gold - can you tell me how, and also check if my last sell went through?",TEXT_ANSWER_OR_TRANSACTION,Portfolio > Sell;REFUNDED,FAQ 1 + transaction
+46,combined,"What's my pending transaction status, and how long do payouts usually take?",TEXT_ANSWER_OR_TRANSACTION,PENDING;1-2 business days,transaction + FAQ 6
+47,combined,Can you tell me about the referral program and show me my transaction history?,TEXT_ANSWER_OR_TRANSACTION,referral code;txn_1007,FAQ 12 + transaction
+48,combined,"My last transaction failed - why, and what fees will I pay next time?",TEXT_ANSWER_OR_TRANSACTION,Insufficient funds;0.5%-1%,transaction + FAQ 7
+49,combined,"Is my gold insured, and did my last purchase succeed?",TEXT_ANSWER_OR_TRANSACTION,insur;PENDING,FAQ 17 + transaction
+50,combined,"Can I get physical delivery, and what's the status of my most recent order?",TEXT_ANSWER_OR_TRANSACTION,delivery fee;FAILED,FAQ 14 + transaction
+51,out_of_scope,How much gold do I currently own in total?,TEXT_ANSWER_GROUNDED,alice,"capability gap - portfolio value, not tracked"
+52,out_of_scope,What's my current account balance?,TEXT_ANSWER_GROUNDED,alice,"capability gap - account balance, not tracked"
+53,out_of_scope,What's the live gold price per gram right now?,TEXT_ANSWER_GROUNDED,alice,"capability gap - real-time price, not tracked"
+54,out_of_scope,Hi,TEXT_ANSWER_GROUNDED,alice,pure greeting
+55,out_of_scope,Good morning!,TEXT_ANSWER_GROUNDED,alice,pure greeting
+56,out_of_scope,Thank you so much for your help!,TEXT_ANSWER_GROUNDED,alice,pure small talk
+57,out_of_scope,How are you doing today?,TEXT_ANSWER_GROUNDED,alice,pure small talk
+58,out_of_scope,What's the weather like today?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform
+59,out_of_scope,Can you recommend a good stock to invest in?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform
+60,out_of_scope,What's the capital of France?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform

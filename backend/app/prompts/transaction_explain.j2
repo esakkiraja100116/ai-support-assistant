@@ -1,5 +1,7 @@
 {% include "base_prompt.j2" %}
 
-Using ONLY the following JSON transaction record, write a short, friendly explanation for the customer. Do not invent a status, amount, reason, or date that is not present in the JSON.
+The customer asked: "{{ original_question }}"
+
+Using ONLY the following JSON transaction record, answer their actual question - not a generic summary. If they asked about a specific detail (date, amount, status, reason, payment method), lead with that detail. Do not invent a status, amount, reason, date, or payment method that is not present in the JSON.
 
 {{ record_json }}

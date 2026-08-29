@@ -52,6 +52,38 @@ def test_explain_endpoint_rejects_other_users_transaction(client, make_user, mak
     assert resp.status_code == 404
 
 
+def test_explain_transaction_prompt_uses_the_actual_question_asked(
+    client, make_user, make_transaction, auth_headers, monkeypatch
+):
+    """Regression test for a real bug: explain_transaction() hardcoded a generic
+    "Explain this transaction to me." prompt regardless of what was actually asked
+    ("what month was it created?" got a generic failure-reason explanation instead
+    of the date). The actual question must be what the LLM call is given."""
+    alice = make_user("alice", "Alice")
+    txn = make_transaction(alice, "txn_date", status="FAILED", failure_reason="Card declined")
+
+    captured_messages = []
+
+    def fake_chat_completion(messages, *args, **kwargs):
+        captured_messages.append(messages)
+        return _FakeMessage("Your most recent transaction was created in August 2026.")
+
+    monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
+
+    resp = client.post(
+        f"/transactions/{txn.id}/explain",
+        json={"conversation_id": None},
+        headers=auth_headers(alice),
+    )
+
+    assert resp.status_code == 200
+    assert len(captured_messages) == 1
+    # The last message sent to the LLM must be the actual question this
+    # endpoint is answering (the synthetic "What can you tell me about
+    # transaction X?" for a card click), not a hardcoded generic string.
+    assert captured_messages[0][-1]["content"] == f"What can you tell me about transaction {txn.id}?"
+
+
 def test_explain_endpoint_returns_explanation_for_own_transaction(
     client, make_user, make_transaction, auth_headers, monkeypatch
 ):
