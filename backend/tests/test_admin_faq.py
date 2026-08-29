@@ -39,3 +39,42 @@ def test_non_admin_cannot_create_faq_article(client, make_user, auth_headers):
         headers=auth_headers(alice),
     )
     assert resp.status_code == 403
+
+
+def test_admin_can_delete_faq_article(client, make_user, auth_headers, db_session):
+    admin = make_user("admin", "Admin", role="ADMINISTRATOR")
+    article = SupportArticle(
+        question="Do you support international wire transfers?",
+        answer="Not currently.",
+        category="payments",
+        embedding=[0.1] * 1536,
+    )
+    db_session.add(article)
+    db_session.commit()
+    db_session.refresh(article)
+
+    resp = client.delete(f"/admin/faq/{article.id}", headers=auth_headers(admin))
+    assert resp.status_code == 204
+
+    # Deleted for good - gone from the public listing the knowledge-base
+    # search reads from, so the assistant can no longer answer from it.
+    assert db_session.get(SupportArticle, article.id) is None
+    faq_resp = client.get("/faq")
+    assert all(a["id"] != article.id for a in faq_resp.json())
+
+
+def test_admin_delete_faq_article_404_for_unknown_id(client, make_user, auth_headers):
+    admin = make_user("admin", "Admin", role="ADMINISTRATOR")
+    resp = client.delete("/admin/faq/999999", headers=auth_headers(admin))
+    assert resp.status_code == 404
+
+
+def test_non_admin_cannot_delete_faq_article(client, make_user, auth_headers, db_session):
+    alice = make_user("alice", "Alice", role="USER")
+    article = SupportArticle(question="Q?", answer="A.", embedding=[0.1] * 1536)
+    db_session.add(article)
+    db_session.commit()
+    db_session.refresh(article)
+
+    resp = client.delete(f"/admin/faq/{article.id}", headers=auth_headers(alice))
+    assert resp.status_code == 403

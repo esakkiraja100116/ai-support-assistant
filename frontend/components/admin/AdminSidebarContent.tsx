@@ -8,7 +8,7 @@ const LINKS = [
   { href: "/admin/transactions", label: "Transactions" },
   { href: "/admin/conversations", label: "Conversations" },
   { href: "/admin/costs", label: "Costs" },
-  { href: "/admin/faq/new", label: "Add FAQ Article" },
+  { href: "/admin/faq", label: "FAQ Articles" },
 ];
 
 export function AdminSidebarContent() {

@@ -130,3 +130,18 @@ export function adminCreateFaqArticle(token: string, payload: FaqArticleCreate):
     body: JSON.stringify(payload),
   });
 }
+
+export async function adminDeleteFaqArticle(token: string, articleId: number): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/admin/faq/${articleId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    throw new ApiError(0, "Could not reach the server. Check your connection and try again.");
+  }
+  if (!response.ok) {
+    throw new ApiError(response.status, `Request failed (${response.status})`);
+  }
+}

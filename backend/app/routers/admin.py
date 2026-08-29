@@ -130,6 +130,18 @@ def create_faq_article(payload: FaqArticleCreate, db: Session = Depends(get_db))
     return article
 
 
+@router.delete("/faq/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_faq_article(article_id: int, db: Session = Depends(get_db)) -> None:
+    article = db.get(SupportArticle, article_id)
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+    # Deleting the row removes its embedding too, so the knowledge-base search
+    # can no longer retrieve it - the assistant simply won't have this article
+    # to draw an answer from on the next query.
+    db.delete(article)
+    db.commit()
+
+
 _CATEGORY_BUCKETS = {
     ChatResponseType.TRANSACTION_SELECTION.value: "transaction",
     ChatResponseType.TRANSACTION_EXPLANATION.value: "transaction",

@@ -1,4 +1,5 @@
 import { TransactionExplanationData } from "@/lib/types";
+import { MarkdownText } from "./MarkdownText";
 
 interface Props {
   data: TransactionExplanationData;
@@ -11,7 +12,9 @@ export function TransactionDetail({ data, message }: Props) {
 
   return (
     <div className="transaction-detail">
-      <p className="transaction-detail-message">{message}</p>
+      <div className="transaction-detail-message">
+        <MarkdownText text={message} />
+      </div>
       <details className="transaction-detail-toggle">
         <summary>View transaction details</summary>
         <dl className="transaction-detail-facts">

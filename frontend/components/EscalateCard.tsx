@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MarkdownText } from "./MarkdownText";
 
 interface Props {
   message: string;
@@ -11,7 +12,9 @@ export function EscalateCard({ message }: Props) {
 
   return (
     <div className="escalate-card">
-      <p className="escalate-card-message">{message}</p>
+      <div className="escalate-card-message">
+        <MarkdownText text={message} />
+      </div>
       {requested ? (
         <p className="escalate-card-confirmation">
           ✓ Request received — our support team will call you shortly.
