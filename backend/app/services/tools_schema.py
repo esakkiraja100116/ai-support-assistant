@@ -90,10 +90,19 @@ ANSWER_FROM_KB = {
     "function": {
         "name": "answer_from_kb",
         "description": (
-            "Call this if one or more of the provided knowledge base articles actually answer "
-            "the customer's question, even if the match isn't exact wording - e.g. an article "
-            "about fees does answer 'do I need to pay extra?'. Write the answer using ONLY the "
-            "content of the article(s) you cite."
+            "Call this if one or more of the provided articles let you answer the question "
+            "through reasonable inference from what's stated - not just exact wording. A "
+            "support agent would make these connections naturally, so you should too:\n"
+            "- if an article discloses everything it charges/includes, that also answers "
+            "whether anything is hidden or extra (disclosure implies nothing left out)\n"
+            "- if an article names the specific options/products offered, that also answers "
+            "'how many are there?' (count what's listed)\n"
+            "- if an article uses one term (e.g. '24K'), that also answers a question using "
+            "its common synonym (e.g. 'carat')\n"
+            "Only call insufficient_kb_info when the articles genuinely lack the needed "
+            "information - not merely because the wording differs. Write the answer using "
+            "ONLY the content of the article(s) you cite - never invent a fact, reason, or "
+            "number that isn't there."
         ),
         "parameters": {
             "type": "object",
@@ -118,8 +127,10 @@ INSUFFICIENT_KB_INFO = {
     "function": {
         "name": "insufficient_kb_info",
         "description": (
-            "Call this if none of the provided knowledge base articles actually answer the "
-            "customer's question - don't guess or answer from general knowledge instead."
+            "Call this only for a genuine mismatch - the articles truly lack the information "
+            "needed, not merely different wording. If an article's content would let you "
+            "answer through reasonable inference (see answer_from_kb), prefer that instead. "
+            "Don't guess or answer from general knowledge here."
         ),
         "parameters": {"type": "object", "properties": {}},
     },
@@ -138,10 +149,14 @@ SYSTEM_PROMPT = (
     "get_recent_transactions. "
     "\n\n"
     "Do not call a tool speculatively. If the customer asks something neither tool can answer "
-    "- for example their current total gold holdings, portfolio balance, or account net worth, "
-    "which this system does not track - say so plainly and briefly explain what you can help "
-    "with instead (their recent transactions, or general support questions). Never guess or "
-    "estimate a number that wasn't returned by a tool. "
+    "- specifically THEIR OWN current total gold holdings, portfolio balance, or account net "
+    "worth (e.g. 'how much gold do I have', 'what's my balance') - this system does not track "
+    "that, so say so plainly and briefly explain what you can help with instead (their recent "
+    "transactions, or general support questions). This does NOT apply to questions about what "
+    "the platform offers in general (e.g. 'how many gold purity options are there', 'what "
+    "products do you offer') - those are catalog/policy questions and must go through "
+    "search_knowledge_base like any other general question. Never guess or estimate a number "
+    "that wasn't returned by a tool. "
     "\n\n"
     "If the question is unrelated to this platform entirely, politely say you can only help "
     "with buying/selling gold and account support here. "

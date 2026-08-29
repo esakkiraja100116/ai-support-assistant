@@ -86,7 +86,7 @@ def test_orchestrator_picks_correct_article_even_when_not_top_ranked(db_session,
     query_embedding = [1.0] + [0.05] + [0.0] * 1534
     monkeypatch.setattr("app.services.kb_service.llm_client.embed", lambda text: query_embedding)
 
-    def fake_chat_completion(messages, tools=None, tool_choice="auto"):
+    def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         return _FakeMessage(
             tool_calls=[
                 _FakeToolCall(

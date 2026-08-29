@@ -8,11 +8,14 @@ look better - it's a read-only report against the current architecture as-is,
 run by hand when you want to check retrieval health after a change:
 
     python -m scripts.eval_faq_coverage
+    python -m scripts.eval_faq_coverage --limit 10                      # quick cost check
+    python -m scripts.eval_faq_coverage --judgment-model gpt-5.6-sol --judgment-reasoning-effort none
 
 Every question's full turn (user message, tool calls, final answer, cost) is
 appended to logs/<session_id>.jsonl via the same session logging every real
 chat request goes through - see app/services/session_log.py.
 """
+import argparse
 import json
 import sys
 from datetime import datetime, timezone
@@ -37,13 +40,27 @@ def classify(response) -> str:
     return "misrouted"  # e.g. a general FAQ question somehow triggered the transaction path
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--judgment-model", default=None, help="Override the model for the KB judgment call only")
+    parser.add_argument("--judgment-reasoning-effort", default=None, help="e.g. 'none' - required by some reasoning models to allow tool calls")
+    parser.add_argument("--limit", type=int, default=None, help="Only run the first N questions (across all FAQs) - for a quick cost check before a full run")
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
+
     if not FIXTURE_PATH.exists():
         print(f"{FIXTURE_PATH} not found - run `python -m scripts.generate_faq_variations` first.")
         return
 
     fixture = json.loads(FIXTURE_PATH.read_text())
-    total_questions = sum(len(item["variations"]) for item in fixture)
+
+    flat_questions = [(item["faq_id"], item["original_question"], v) for item in fixture for v in item["variations"]]
+    if args.limit:
+        flat_questions = flat_questions[: args.limit]
+    total_questions = len(flat_questions)
 
     db = SessionLocal()
     try:
@@ -53,26 +70,32 @@ def main() -> None:
             return
 
         session_id = f"eval-faq-coverage-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
-        print(f"Running {total_questions} questions across {len(fixture)} FAQs as session {session_id!r}...\n")
+        label = f" (judgment_model={args.judgment_model}, reasoning_effort={args.judgment_reasoning_effort})" if args.judgment_model else ""
+        print(f"Running {total_questions} question(s) as session {session_id!r}{label}...\n")
 
-        per_faq_results = []
+        per_faq_counts: dict[int, dict] = {}
         overall_counts = {"answered": 0, "declined": 0, "error": 0, "misrouted": 0}
 
-        for item in fixture:
-            counts = {"answered": 0, "declined": 0, "error": 0, "misrouted": 0}
-            for question in item["variations"]:
-                try:
-                    response = chat_turn(db, user, question, [], conversation_id=session_id)
-                    outcome = classify(response)
-                except Exception as exc:
-                    outcome = "error"
-                    print(f"  ! exception on {question!r}: {exc}")
-                counts[outcome] += 1
-                overall_counts[outcome] += 1
+        for faq_id, original_question, question in flat_questions:
+            try:
+                response = chat_turn(
+                    db, user, question, [],
+                    conversation_id=session_id,
+                    judgment_model=args.judgment_model,
+                    judgment_reasoning_effort=args.judgment_reasoning_effort,
+                )
+                outcome = classify(response)
+            except Exception as exc:
+                outcome = "error"
+                print(f"  ! exception on {question!r}: {exc}")
+            overall_counts[outcome] += 1
+            bucket = per_faq_counts.setdefault(faq_id, {"question": original_question, "total": 0, "answered": 0})
+            bucket["total"] += 1
+            if outcome == "answered":
+                bucket["answered"] += 1
 
-            per_faq_results.append((item["faq_id"], item["original_question"], counts))
-            covered = counts["answered"]
-            print(f"[{item['faq_id']:>2}] {item['original_question']:<50} {covered:>2}/{len(item['variations'])} covered")
+        for faq_id, bucket in per_faq_counts.items():
+            print(f"[{faq_id:>2}] {bucket['question']:<50} {bucket['answered']:>2}/{bucket['total']} covered")
 
         total_cost = 0.0
         with session_log.session_scope(session_id) as recorder:
@@ -84,6 +107,8 @@ def main() -> None:
         print(f"       {overall_counts['error']}/{total_questions} errored")
         print(f"       {overall_counts['misrouted']}/{total_questions} misrouted to the transaction path")
         print(f"Session cost: ${total_cost:.4f}  (full detail: backend/logs/{session_id}.jsonl)")
+        if total_questions:
+            print(f"Avg cost/question: ${total_cost / total_questions:.5f}  (x180 projected: ${total_cost / total_questions * 180:.4f})")
         print("=" * 70)
 
         with session_log.session_scope(session_id) as recorder:
@@ -92,9 +117,11 @@ def main() -> None:
                 total_questions=total_questions,
                 counts=overall_counts,
                 total_cost_usd=round(total_cost, 6),
+                judgment_model=args.judgment_model,
+                judgment_reasoning_effort=args.judgment_reasoning_effort,
                 per_faq=[
-                    {"faq_id": fid, "question": q, "covered": c["answered"], "total": sum(c.values())}
-                    for fid, q, c in per_faq_results
+                    {"faq_id": fid, "question": b["question"], "covered": b["answered"], "total": b["total"]}
+                    for fid, b in per_faq_counts.items()
                 ],
             )
     finally:

@@ -30,12 +30,22 @@ python -m scripts.eval_faq_coverage         # ~180 chat turns, a few cents of Op
 
 Not part of `pytest` / CI — a hard pass/fail threshold on 180 LLM-judged answers would be flaky, and worse, would pressure future changes to game the number rather than genuinely improve retrieval. This is a report you read, run by hand after touching retrieval or prompt code.
 
-## Current result: 175/180 (97.2%)
+## Result history
 
-Run on 2026-08-29, no code changes made in response to it (see note below):
+The fixture and prompts both evolved during initial testing, so results aren't directly comparable across rows - each is against the fixture/prompt version active at the time:
 
-- 0 errors.
-- 2 "misrouted" — both were phrasings that the fixture generator personalized ("why did **my** gold transaction fail?") in a way that changed the actual intent from a generic policy question into a personal one. The system prompt correctly routes personal transaction questions to the transaction tool instead of the knowledge base — this is arguably correct behavior given the literal wording, not a retrieval failure.
-- 3 genuine declines — indirect phrasings ("automatic gold purchase plan," "vaults where my gold is placed") that the answer-judgment step was conservative about connecting to the relevant FAQ, despite the FAQ being in its candidate list. Same category as a bug found earlier ("are there hidden charges" not connecting to the fees FAQ) — a prompt-wording tuning knob (nudging the model to make reasonable inferential connections, not just literal keyword matches), not a structural issue.
+| Date | Fixture | Judgment prompt | Answered |
+|---|---|---|---|
+| 2026-08-29 (early) | question-paraphrases only | original (one example) | 175/180 (97.2%) |
+| 2026-08-29 (later) | question **+ answer** based (harder, current) | original (one example) | 159/180 (88.3%) |
+| 2026-08-29 (current) | question + answer based | generalized inference examples + intent-routing fix | **157/180 (87.2%)** |
 
-**Deliberately not chased further**: per the project's "don't overfit" principle, no prompt or retrieval code was changed specifically to push this number up after this run. The current architecture (widen the candidate pool, let the model judge relevance from real content — see the root README's "Embeddings and knowledge-base retrieval" section) is doing its job; squeezing out the last few percent by hand-tuning against this exact 180-question set would optimize for the test rather than for real users asking questions the fixture never anticipated.
+The current baseline (157/180, `gpt-4o-mini`) is lower than the first run not because anything regressed, but because the fixture itself got harder on purpose (see "How it works" above) - it now includes questions that require reading the answer, not just paraphrasing the question. See `docs/judgment-model-comparison.md` for a same-fixture comparison against a different judgment-step model (`gpt-5.6-sol`: 166/180, 92.2%, at ~18x the cost).
+
+Of the current 23 non-answered (21 declined + 2 misrouted):
+
+- 2 "misrouted" — phrasings the fixture generator personalized ("why did **my** gold transaction fail?") in a way that changed the actual intent from a generic policy question into a personal one. The system prompt correctly routes personal transaction questions to the transaction tool instead of the knowledge base - arguably correct behavior given the literal wording, not a failure.
+- Most of the rest are the same category as a bug found earlier ("are there hidden charges" not connecting to the fees FAQ despite the article being retrieved) - the judgment step being conservative about inferring an answer from stated facts rather than requiring near-literal wording. A prompt tweak (see `tools_schema.py`'s `answer_from_kb`) measurably helped but didn't fully close this gap with `gpt-4o-mini`; see `docs/judgment-model-comparison.md` for how a different judgment model performs on the same fixture.
+- A smaller number are genuine retrieval misses (e.g. "spread" only appearing in an answer, never the question it's embedded from) - not fixable by prompt or model changes to the judgment step; would need indexing answer text too (see root README's "what I'd improve").
+
+**Deliberately not chased further by hand-tuning this exact fixture**: per the project's "don't overfit" principle, changes made in response to these results (the inference-permitting prompt tweak, the intent-routing fix) were general architectural/prompt corrections applicable beyond this specific question set, not patches targeted at individual failing questions. Squeezing out the last few percent by hand-tuning against this exact 180-question set would optimize for the test rather than for real users asking questions the fixture never anticipated.

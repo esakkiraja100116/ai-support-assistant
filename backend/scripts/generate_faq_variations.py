@@ -1,5 +1,12 @@
-"""Generates 10 alternative customer phrasings for each seeded FAQ question,
-producing a fixed 18x10 = 180-question test fixture for scripts/eval_faq_coverage.py.
+"""Generates 10 realistic customer questions for each seeded FAQ, producing a fixed
+18x10 = 180-question test fixture for scripts/eval_faq_coverage.py.
+
+Variations are generated from BOTH the question and the answer - not just paraphrases
+of the question - since real customers ask about specific details only stated in the
+answer (e.g. "why is the fee 0.5%-1%?") or ask something that requires one small
+inference from the answer's content (e.g. "how many gold options are there?" from an
+answer that names two specific products without stating a count). Testing on
+question-only paraphrases undersells how questions actually get asked.
 
 This is a one-time (or re-run-when-you-want-a-fresh-set) generation step, not
 something run automatically before every eval - the output is a committed,
@@ -24,10 +31,19 @@ GENERATE_PROMPT = (
     "You are helping build a test set for a customer support chatbot for a platform "
     "where customers buy and sell gold (only gold - GOLD24/GOLD22 - not silver or any "
     "other metal). Given one approved FAQ question and its answer, write exactly 10 "
-    "alternative ways a real customer might ask the SAME underlying question - vary "
-    "phrasing, formality, directness, and word choice (synonyms, indirect phrasing, "
-    "casual tone, etc). Do not mention silver or any product this platform doesn't "
-    "offer. Do not change what is being asked. Return ONLY a JSON array of 10 strings, "
+    "questions a real customer might ask that this FAQ should be able to answer. Mix "
+    "three styles across the 10, roughly evenly:\n"
+    "1. Paraphrases of the question itself - vary phrasing, formality, and word choice.\n"
+    "2. Questions that reference a specific fact, number, or detail mentioned ONLY in "
+    "the answer, not the question - e.g. if the answer states a percentage or a named "
+    "option, ask about that detail directly.\n"
+    "3. Questions that require one small, reasonable inference from the answer's "
+    "content rather than restating it - e.g. if the answer lists specific named "
+    "options, ask how many there are; if the answer states everything included or "
+    "charged, ask whether anything is hidden or extra.\n"
+    "Do not mention silver or any product this platform doesn't offer. Do not ask "
+    "about anything not actually stated or reasonably inferable from the answer. "
+    "Return ONLY a JSON array of 10 strings, "
     "no other text.\n\n"
     "FAQ question: {question}\n"
     "FAQ answer: {answer}"

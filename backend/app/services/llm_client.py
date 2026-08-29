@@ -59,16 +59,27 @@ def chat_completion(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None = None,
     tool_choice: str = "auto",
+    model: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> ChatCompletionMessage:
     """Runs one chat completion call and returns the assistant message
-    (which may contain `.tool_calls` and/or `.content`)."""
-    kwargs: dict[str, Any] = {"model": settings.chat_model, "messages": messages}
+    (which may contain `.tool_calls` and/or `.content`).
+
+    `model` and `reasoning_effort` default to unset/`settings.chat_model` - both
+    overrides exist for controlled experiments (e.g. comparing judgment quality
+    across models on a fixed question set), not for any app code path to pick
+    per request. `reasoning_effort` is only meaningful for reasoning-family
+    models, some of which reject tool-calling unless it's explicitly set."""
+    used_model = model or settings.chat_model
+    kwargs: dict[str, Any] = {"model": used_model, "messages": messages}
     if tools:
         kwargs["tools"] = tools
         kwargs["tool_choice"] = tool_choice
+    if reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
     response = _get_client().chat.completions.create(**kwargs)
     message = response.choices[0].message
-    _record_call("chat_completion", settings.chat_model, response.usage, message)
+    _record_call("chat_completion", used_model, response.usage, message)
     return message
 
 

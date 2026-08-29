@@ -36,16 +36,28 @@ def chat_turn(
     message: str,
     history: list[ChatMessage],
     conversation_id: str | None = None,
+    judgment_model: str | None = None,
+    judgment_reasoning_effort: str | None = None,
 ) -> ChatResponse:
+    # `judgment_model`/`judgment_reasoning_effort` only affect the KB answer_from_kb/
+    # insufficient_kb_info call (see _handle_knowledge_base) - for controlled experiments,
+    # not something any real request path sets.
     session_id = conversation_id or f"anon-{uuid.uuid4()}"
     with session_log.session_scope(session_id) as session:
         session.log("user_message", user_id=str(user.id), content=message)
-        response = _chat_turn(db, user, message, history)
+        response = _chat_turn(db, user, message, history, judgment_model, judgment_reasoning_effort)
         session.log("final_response", type=response.type.value, message=response.message, data=response.data)
         return response
 
 
-def _chat_turn(db: Session, user: User, message: str, history: list[ChatMessage]) -> ChatResponse:
+def _chat_turn(
+    db: Session,
+    user: User,
+    message: str,
+    history: list[ChatMessage],
+    judgment_model: str | None = None,
+    judgment_reasoning_effort: str | None = None,
+) -> ChatResponse:
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages += [{"role": h.role, "content": h.content} for h in history]
     messages.append({"role": "user", "content": message})
@@ -64,7 +76,7 @@ def _chat_turn(db: Session, user: User, message: str, history: list[ChatMessage]
     tool_name = call.function.name
 
     if tool_name == "search_knowledge_base":
-        return _handle_knowledge_base(db, message)
+        return _handle_knowledge_base(db, message, judgment_model, judgment_reasoning_effort)
 
     if tool_name == "get_recent_transactions":
         return _handle_recent_transactions(db, user, message, history)
@@ -73,7 +85,16 @@ def _chat_turn(db: Session, user: User, message: str, history: list[ChatMessage]
     return ChatResponse.error("unsupported_tool", "The assistant tried to use an unsupported action.")
 
 
-def _handle_knowledge_base(db: Session, query: str) -> ChatResponse:
+def _handle_knowledge_base(
+    db: Session,
+    query: str,
+    judgment_model: str | None = None,
+    judgment_reasoning_effort: str | None = None,
+) -> ChatResponse:
+    # `judgment_model`/`judgment_reasoning_effort` override which model (and, for
+    # reasoning-family models, effort level) makes the answer_from_kb/insufficient_kb_info
+    # call, for controlled experiments comparing judgment quality across models on a fixed
+    # question set (scripts/eval_judgment_model.py) - not something any real request path sets.
     # Always search on the customer's own message verbatim - letting the model
     # rephrase it before searching measurably hurt retrieval (see scripts/eval_kb.py):
     # rewording even slightly (dropping "my", "How can I" -> "how to") was enough to
@@ -112,7 +133,11 @@ def _handle_knowledge_base(db: Session, query: str) -> ChatResponse:
     ]
     try:
         resolved = llm_client.chat_completion(
-            grounded_messages, tools=[ANSWER_FROM_KB, INSUFFICIENT_KB_INFO], tool_choice="required"
+            grounded_messages,
+            tools=[ANSWER_FROM_KB, INSUFFICIENT_KB_INFO],
+            tool_choice="required",
+            model=judgment_model,
+            reasoning_effort=judgment_reasoning_effort,
         )
         for call in getattr(resolved, "tool_calls", None) or []:
             args = json.loads(call.function.arguments or "{}")

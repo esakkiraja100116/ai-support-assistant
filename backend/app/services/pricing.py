@@ -8,6 +8,10 @@ differs; nothing else in the codebase needs to change.
 PRICING_PER_MILLION_TOKENS: dict[str, dict[str, float]] = {
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
     "text-embedding-3-small": {"input": 0.02, "output": 0.0},
+    # gpt-5.6 family - promotional/standard rates as of August 2026, user-supplied.
+    "gpt-5.6-sol": {"input": 4.00, "output": 20.00},
+    "gpt-5.6-terra": {"input": 2.00, "output": 12.00},
+    "gpt-5.6-luna": {"input": 0.20, "output": 1.20},
 }
 
 

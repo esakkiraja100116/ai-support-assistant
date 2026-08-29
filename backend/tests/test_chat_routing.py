@@ -30,7 +30,7 @@ def test_chat_shows_selection_cards_only_when_ambiguous(
     make_transaction(alice, "txn_a1")
     make_transaction(bob, "txn_b1")
 
-    def fake_chat_completion(messages, tools=None, tool_choice="auto"):
+    def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         if "get_recent_transactions" in _tool_names(tools):
             return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
         if "resolve_transaction" in _tool_names(tools):
@@ -59,7 +59,7 @@ def test_chat_resolves_specific_transaction_without_showing_cards(
     make_transaction(alice, "txn_old", status="SUCCESS")
     failed_txn = make_transaction(alice, "txn_failed", status="FAILED", failure_reason="Card declined")
 
-    def fake_chat_completion(messages, tools=None, tool_choice="auto"):
+    def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
         if "get_recent_transactions" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
@@ -88,7 +88,7 @@ def test_chat_falls_back_to_selection_if_resolved_id_not_in_users_list(
     alice = make_user("alice", "Alice")
     make_transaction(alice, "txn_a1")
 
-    def fake_chat_completion(messages, tools=None, tool_choice="auto"):
+    def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
         if "get_recent_transactions" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
@@ -121,7 +121,7 @@ def test_chat_routes_general_question_to_knowledge_base_tool(client, make_user, 
     db_session.add(article)
     db_session.commit()
 
-    def fake_chat_completion(messages, tools=None, tool_choice="auto"):
+    def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
         if "search_knowledge_base" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("search_knowledge_base")])
