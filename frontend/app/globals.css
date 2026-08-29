@@ -105,21 +105,6 @@ body {
   background: #fff;
 }
 
-.chat-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  border-bottom: 1px solid #eee;
-  font-size: 14px;
-  color: #333;
-}
-
-.header-actions {
-  display: flex;
-  gap: 16px;
-}
-
 .text-button {
   border: none;
   background: none;
@@ -506,6 +491,340 @@ body {
   line-height: 1.5;
 }
 
+/* Dashboard shell (navbar + sidebar), shared by the customer chat UI and the
+   admin dashboard */
+
+.dashboard-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.dashboard-navbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.dashboard-navbar-title {
+  flex: 1;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.sidebar-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.sidebar-toggle span {
+  display: block;
+  height: 2px;
+  background: #333;
+  border-radius: 1px;
+}
+
+.dashboard-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.dashboard-sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid #eee;
+  background: #fafafa;
+  overflow-y: auto;
+}
+
+.dashboard-sidebar-backdrop {
+  display: none;
+}
+
+.dashboard-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.dashboard-main .chat-window {
+  height: 100%;
+  max-width: none;
+}
+
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 14px;
+  gap: 10px;
+}
+
+.new-chat-button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #6366f1;
+  background: #fff;
+  color: #6366f1;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.new-chat-button:hover {
+  background: #eef1ff;
+}
+
+.conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.conversation-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conversation-list-item:hover {
+  background: #eef1ff;
+}
+
+.conversation-list-item.active {
+  background: #e0e7ff;
+}
+
+.conversation-list-item-title {
+  font-size: 13px;
+  color: #1a1a1a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-list-item-meta {
+  font-size: 11px;
+  color: #888;
+}
+
+.sidebar-empty {
+  padding: 8px 10px;
+}
+
+.sidebar-faq-link {
+  margin-top: 0;
+}
+
+/* Profile menu */
+
+.profile-menu {
+  position: relative;
+}
+
+.profile-menu-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.profile-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.profile-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  z-index: 11;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  padding: 14px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-menu-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.profile-menu-role {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+/* Admin nav + tables */
+
+.admin-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-nav-link {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #333;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.admin-nav-link:hover {
+  background: #eef1ff;
+}
+
+.admin-nav-link.active {
+  background: #e0e7ff;
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.admin-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.admin-page h1 {
+  font-size: 22px;
+  margin: 0 0 6px;
+}
+
+.admin-page h2 {
+  font-size: 16px;
+  margin: 24px 0 10px;
+}
+
+.admin-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+}
+
+.admin-table th {
+  color: #888;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cost-total {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
+.read-only-transcript {
+  border: 1px solid #eee;
+  border-radius: 10px;
+  margin-top: 16px;
+}
+
+.read-only-transcript .message-list {
+  height: auto;
+  max-height: 70vh;
+}
+
+.read-only-transcript button {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Admin FAQ form */
+
+.faq-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 520px;
+  margin-top: 18px;
+}
+
+.faq-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #444;
+}
+
+.faq-form-field input,
+.faq-form-field textarea {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.faq-form button[type="submit"] {
+  align-self: flex-start;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.faq-form button[type="submit"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.faq-form-success {
+  color: #15803d;
+  font-size: 14px;
+  margin: 0;
+}
+
 /* Responsive */
 
 @media (max-width: 480px) {
@@ -519,5 +838,38 @@ body {
 
   .transaction-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar-toggle {
+    display: flex;
+  }
+
+  .dashboard-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 21;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .dashboard-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .dashboard-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 20;
+  }
+
+  .admin-page {
+    padding: 16px 12px 40px;
   }
 }

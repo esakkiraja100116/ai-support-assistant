@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # calls on the Chat Completions API at all - see docs/judgment-model-comparison.md.
     resolve_model: str = "gpt-5.6-sol"
     resolve_reasoning_effort: str | None = "none"
+    # Conversation titles are generated from the first user message via a plain,
+    # cheap content-generation call - gpt-4o-mini is already priced in pricing.py
+    # and is more than capable of a short summarizing title.
+    title_model: str = "gpt-4o-mini"
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 120

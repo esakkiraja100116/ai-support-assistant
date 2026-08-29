@@ -14,7 +14,7 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 
 from app.config import settings
-from app.services import pricing, session_log
+from app.services import pricing, session_log, turn_metrics
 
 _client: OpenAI | None = None
 
@@ -27,13 +27,15 @@ def _get_client() -> OpenAI:
 
 
 def _record_call(kind: str, model: str, usage: Any, message: ChatCompletionMessage | None = None) -> None:
+    prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
+    completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
+    cost = pricing.estimate_cost_usd(model, prompt_tokens, completion_tokens)
+    turn_metrics.record(model, prompt_tokens, completion_tokens, cost)
+
     session = session_log.get_current_session()
     if session is None:
         return
 
-    prompt_tokens = getattr(usage, "prompt_tokens", 0) if usage else 0
-    completion_tokens = getattr(usage, "completion_tokens", 0) if usage else 0
-    cost = pricing.estimate_cost_usd(model, prompt_tokens, completion_tokens)
     total = session.add_cost(cost)
 
     event: dict[str, Any] = {

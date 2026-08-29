@@ -1,4 +1,15 @@
-import { ChatHistoryEntry, ChatResponse, FaqArticle, SeededUser } from "./types";
+import {
+  AdminCostSummary,
+  AdminTransaction,
+  AdminUser,
+  ChatResponse,
+  ConversationDetail,
+  ConversationSummary,
+  ConversationWithUser,
+  FaqArticle,
+  FaqArticleCreate,
+  SeededUser,
+} from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -42,23 +53,20 @@ export function listUsers(): Promise<SeededUser[]> {
   return request<SeededUser[]>("/auth/users");
 }
 
-export function login(username: string): Promise<{ access_token: string; user_id: string; display_name: string }> {
+export function login(
+  username: string
+): Promise<{ access_token: string; user_id: string; display_name: string; role: string }> {
   return request("/auth/login", {
     method: "POST",
     body: JSON.stringify({ username }),
   });
 }
 
-export function sendChatMessage(
-  token: string,
-  message: string,
-  history: ChatHistoryEntry[],
-  conversationId: string
-): Promise<ChatResponse> {
+export function sendChatMessage(token: string, message: string, conversationId: string): Promise<ChatResponse> {
   return request<ChatResponse>("/chat", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, history, conversation_id: conversationId }),
+    body: JSON.stringify({ message, conversation_id: conversationId }),
   });
 }
 
@@ -71,4 +79,54 @@ export function explainTransaction(token: string, transactionId: string): Promis
 
 export function listFaqArticles(): Promise<FaqArticle[]> {
   return request<FaqArticle[]>("/faq");
+}
+
+export function listConversations(token: string): Promise<ConversationSummary[]> {
+  return request<ConversationSummary[]>("/conversations", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getConversation(token: string, conversationId: string): Promise<ConversationDetail> {
+  return request<ConversationDetail>(`/conversations/${conversationId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminListUsers(token: string): Promise<AdminUser[]> {
+  return request<AdminUser[]>("/admin/users", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminListTransactions(token: string): Promise<AdminTransaction[]> {
+  return request<AdminTransaction[]>("/admin/transactions", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminListConversations(token: string): Promise<ConversationWithUser[]> {
+  return request<ConversationWithUser[]>("/admin/conversations", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminGetConversation(token: string, conversationId: string): Promise<ConversationDetail> {
+  return request<ConversationDetail>(`/admin/conversations/${conversationId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminGetCosts(token: string): Promise<AdminCostSummary> {
+  return request<AdminCostSummary>("/admin/costs", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminCreateFaqArticle(token: string, payload: FaqArticleCreate): Promise<FaqArticle> {
+  return request<FaqArticle>("/admin/faq", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
 }

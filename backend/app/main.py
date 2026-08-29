@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, chat, faq, transactions
+from app.routers import admin, auth, chat, conversations, faq, transactions
 
 app = FastAPI(title="Support Assistant API")
 
@@ -18,6 +18,8 @@ app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(transactions.router)
 app.include_router(faq.router)
+app.include_router(conversations.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
