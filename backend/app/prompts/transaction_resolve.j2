@@ -1,0 +1,6 @@
+{% include "base_prompt.j2" %}
+
+Here is the customer's recent transaction history as JSON, ordered most recent first (this is the order it would be shown to them):
+{{ transactions_json }}
+
+If the customer's message clearly identifies exactly one of these transactions, call resolve_transaction with its id. Otherwise call no_single_match. You must call exactly one of these two tools - never answer in plain text, and never describe, list, or summarize the transactions yourself.

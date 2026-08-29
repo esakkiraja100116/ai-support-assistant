@@ -1,0 +1,9 @@
+{% include "base_prompt.j2" %}
+
+Here are knowledge base articles that may be relevant to the customer's question:
+
+{% for article in articles %}
+[id={{ article.id }}] Q: {{ article.question }}
+A: {{ article.answer }}
+{% endfor %}
+If one or more of them actually answer the question, call answer_from_kb. If none of them do, call insufficient_kb_info. You must call exactly one of these two tools - never answer in plain text, and never use information not present in the articles above.

@@ -7,14 +7,13 @@ from sqlalchemy.orm import Session
 from app.models import Transaction, User
 from app.schemas.chat import ChatMessage, ChatResponse
 from app.schemas.transactions import TransactionOut
-from app.services import kb_service, llm_client, session_log, transaction_service
+from app.services import kb_service, llm_client, prompts, session_log, transaction_service
 from app.services.tools_schema import (
     ALL_TOOLS,
     ANSWER_FROM_KB,
     INSUFFICIENT_KB_INFO,
     NO_SINGLE_MATCH,
     RESOLVE_TRANSACTION,
-    SYSTEM_PROMPT,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,7 +57,8 @@ def _chat_turn(
     judgment_model: str | None = None,
     judgment_reasoning_effort: str | None = None,
 ) -> ChatResponse:
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    system_prompt = prompts.render("system_prompt.j2", display_name=user.display_name)
+    messages = [{"role": "system", "content": system_prompt}]
     messages += [{"role": h.role, "content": h.content} for h in history]
     messages.append({"role": "user", "content": message})
 
@@ -76,7 +76,7 @@ def _chat_turn(
     tool_name = call.function.name
 
     if tool_name == "search_knowledge_base":
-        return _handle_knowledge_base(db, message, judgment_model, judgment_reasoning_effort)
+        return _handle_knowledge_base(db, user, message, judgment_model, judgment_reasoning_effort)
 
     if tool_name == "get_recent_transactions":
         return _handle_recent_transactions(db, user, message, history)
@@ -87,6 +87,7 @@ def _chat_turn(
 
 def _handle_knowledge_base(
     db: Session,
+    user: User,
     query: str,
     judgment_model: str | None = None,
     judgment_reasoning_effort: str | None = None,
@@ -116,19 +117,9 @@ def _handle_knowledge_base(
     # pool (kb_service's top_k) and having the model pick the real answer out of it is
     # far more robust than any single cosine cutoff.
     articles_by_id = {a.id: a for a in result.articles}
-    context = "\n\n".join(f"[id={a.id}] Q: {a.question}\nA: {a.answer}" for a in result.articles)
+    system_prompt = prompts.render("kb_judgment.j2", articles=result.articles, display_name=user.display_name)
     grounded_messages = [
-        {
-            "role": "system",
-            "content": (
-                "Here are knowledge base articles that may be relevant to the customer's "
-                "question:\n\n" + context + "\n\n"
-                "If one or more of them actually answer the question, call answer_from_kb. "
-                "If none of them do, call insufficient_kb_info. You must call exactly one of "
-                "these two tools - never answer in plain text, and never use information not "
-                "present in the articles above."
-            ),
-        },
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": query},
     ]
     try:
@@ -171,20 +162,12 @@ def _handle_recent_transactions(
     # Try to resolve a single specific transaction from the customer's own wording before
     # falling back to a card list. This list is already scoped to `user`, so whichever id
     # the model picks (if any) can only ever be one of the authenticated user's own records.
-    resolve_messages = [
-        {
-            "role": "system",
-            "content": (
-                "Here is the customer's recent transaction history as JSON, ordered most "
-                "recent first (this is the order it would be shown to them):\n"
-                + json.dumps([t.model_dump(mode="json") for t in txn_out])
-                + "\n\nIf the customer's message clearly identifies exactly one of these "
-                "transactions, call resolve_transaction with its id. Otherwise call "
-                "no_single_match. You must call exactly one of these two tools - never answer "
-                "in plain text, and never describe, list, or summarize the transactions yourself."
-            ),
-        },
-    ]
+    resolve_system_prompt = prompts.render(
+        "transaction_resolve.j2",
+        transactions_json=json.dumps([t.model_dump(mode="json") for t in txn_out]),
+        display_name=user.display_name,
+    )
+    resolve_messages = [{"role": "system", "content": resolve_system_prompt}]
     resolve_messages += [{"role": h.role, "content": h.content} for h in history]
     resolve_messages.append({"role": "user", "content": message})
 
@@ -198,7 +181,7 @@ def _handle_recent_transactions(
             if call.function.name == "resolve_transaction":
                 chosen = txn_by_id.get(args.get("transaction_id"))
                 if chosen is not None:
-                    explanation = explain_transaction(chosen)
+                    explanation = explain_transaction(chosen, user.display_name)
                     return ChatResponse.transaction_explanation(explanation, chosen)
             elif call.function.name == "no_single_match":
                 selection_message = SELECTION_MESSAGES.get(args.get("reason"), SELECTION_MESSAGES["ambiguous"])
@@ -208,7 +191,7 @@ def _handle_recent_transactions(
     return ChatResponse.transaction_selection(selection_message, txn_out)
 
 
-def explain_transaction(transaction: Transaction) -> str:
+def explain_transaction(transaction: Transaction, display_name: str) -> str:
     """Turns one already-authorized, already-fetched transaction record into a
     friendly explanation. Deliberately not routed through intent classification:
     the user's card click is already an unambiguous, explicit action."""
@@ -223,15 +206,9 @@ def explain_transaction(transaction: Transaction) -> str:
         "created_at": transaction.created_at.isoformat(),
         "updated_at": transaction.updated_at.isoformat(),
     }
+    system_prompt = prompts.render("transaction_explain.j2", record_json=json.dumps(record), display_name=display_name)
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "Using ONLY the following JSON transaction record, write a short, friendly "
-                "explanation for the customer. Do not invent a status, amount, reason, or date "
-                "that is not present in the JSON.\n\n" + json.dumps(record)
-            ),
-        },
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": "Explain this transaction to me."},
     ]
     try:

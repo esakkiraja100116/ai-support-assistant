@@ -18,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.db import SessionLocal  # noqa: E402
+from app.models import User  # noqa: E402
 from app.services import orchestrator, session_log  # noqa: E402
 
 # (question, expected source FAQ id) - all confirmed retrieved as candidates already,
@@ -51,13 +52,18 @@ def main() -> None:
 
     db = SessionLocal()
     try:
+        user = db.query(User).order_by(User.username).first()
+        if user is None:
+            print("No seeded users found - run `python -m scripts.seed` first.")
+            return
+
         session_id = f"judgment-model-test-{model}"
         resolved_count = 0
         error_count = 0
         with session_log.session_scope(session_id) as recorder:
             for question, expected_faq_id in KNOWN_JUDGMENT_FAILURES:
                 response = orchestrator._handle_knowledge_base(
-                    db, question, judgment_model=model, judgment_reasoning_effort=reasoning_effort
+                    db, user, question, judgment_model=model, judgment_reasoning_effort=reasoning_effort
                 )
                 if response.type.value == "ERROR":
                     error_count += 1

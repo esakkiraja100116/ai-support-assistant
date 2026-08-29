@@ -50,7 +50,7 @@ def test_kb_search_returns_matching_article(db_session, monkeypatch):
     assert result.articles[0].id == article.id
 
 
-def test_orchestrator_skips_llm_call_when_no_candidates_at_all(db_session, monkeypatch):
+def test_orchestrator_skips_llm_call_when_no_candidates_at_all(db_session, make_user, monkeypatch):
     seeded_embedding = [1.0] + [0.0] * 1535
     _make_article(db_session, "How do I buy gold?", "Go to Buy...", seeded_embedding)
 
@@ -62,13 +62,14 @@ def test_orchestrator_skips_llm_call_when_no_candidates_at_all(db_session, monke
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", _unexpected_call)
 
-    result = orchestrator._handle_knowledge_base(db_session, "something unrelated")
+    alice = make_user("alice", "Alice")
+    result = orchestrator._handle_knowledge_base(db_session, alice, "something unrelated")
 
     assert result.type.value == "TEXT_ANSWER"
     assert result.data["grounded"] is False
 
 
-def test_orchestrator_picks_correct_article_even_when_not_top_ranked(db_session, monkeypatch):
+def test_orchestrator_picks_correct_article_even_when_not_top_ranked(db_session, make_user, monkeypatch):
     """Regression test for a real bug: "do I need to pay extra if I purchase gold?" scored
     higher against an unrelated article than the one that actually answers it, because
     "purchase gold" dominated the embedding over the weaker "pay extra" signal. The fix is
@@ -98,14 +99,15 @@ def test_orchestrator_picks_correct_article_even_when_not_top_ranked(db_session,
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
 
-    result = orchestrator._handle_knowledge_base(db_session, "do I need to pay extra if I purchase gold?")
+    alice = make_user("alice", "Alice")
+    result = orchestrator._handle_knowledge_base(db_session, alice, "do I need to pay extra if I purchase gold?")
 
     assert result.data["grounded"] is True
     assert result.data["sources"] == [fees.id]
     assert buy_gold.id not in result.data["sources"]
 
 
-def test_orchestrator_declines_when_candidates_exist_but_none_relevant(db_session, monkeypatch):
+def test_orchestrator_declines_when_candidates_exist_but_none_relevant(db_session, make_user, monkeypatch):
     seeded_embedding = [1.0] + [0.0] * 1535
     _make_article(db_session, "How do I buy gold?", "Go to Buy...", seeded_embedding)
 
@@ -118,6 +120,7 @@ def test_orchestrator_declines_when_candidates_exist_but_none_relevant(db_sessio
         lambda *a, **kw: _FakeMessage(tool_calls=[_FakeToolCall("insufficient_kb_info")]),
     )
 
-    result = orchestrator._handle_knowledge_base(db_session, "something tangential")
+    alice = make_user("alice", "Alice")
+    result = orchestrator._handle_knowledge_base(db_session, alice, "something tangential")
 
     assert result.data["grounded"] is False

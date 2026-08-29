@@ -1,0 +1,5 @@
+{% include "base_prompt.j2" %}
+
+Using ONLY the following JSON transaction record, write a short, friendly explanation for the customer. Do not invent a status, amount, reason, or date that is not present in the JSON.
+
+{{ record_json }}

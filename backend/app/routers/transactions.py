@@ -41,5 +41,5 @@ def explain(
     transaction = transaction_service.get_transaction_details(db, current_user, transaction_id)
     if transaction is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
-    message = explain_transaction(transaction)
+    message = explain_transaction(transaction, current_user.display_name)
     return ChatResponse.transaction_explanation(message, transaction)
