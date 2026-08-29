@@ -43,47 +43,47 @@ Full setup/run/test details live in each service's own README. If you're using C
 
 ## Architecture
 
-```
-Browser (Next.js)
-   │  fetch + Bearer JWT
-   ▼
-FastAPI  ──────────────────────────────────────────────┐
-   │                                                    │
-   │  POST /chat                                        │  POST /transactions/{id}/explain
-   ▼                                                    ▼
-orchestrator.chat_turn()                     transaction_service.get_transaction_details()
-   │                                          (plain authorized lookup, 404 if not caller's)
-   │  1 OpenAI call, tool_choice="auto"                 │
-   │  tools: search_knowledge_base,                     │  1 OpenAI call: explain this JSON record
-   │         get_recent_transactions                    ▼
-   ├─ no tool called ──────────► small-talk reply   TRANSACTION_EXPLANATION
-   │
-   ├─ search_knowledge_base ──► kb_service (pgvector cosine search, top 8 candidates)
-   │                             │
-   │                             ├─ nothing above the noise floor ──► fixed "I don't know"
-   │                             │                                    (no 2nd LLM call)
-   │                             └─ 1+ candidates ──► 1 more OpenAI call, tool_choice="required"
-   │                                                  tools: answer_from_kb, insufficient_kb_info
-   │
-   └─ get_recent_transactions ─► transaction_service (DB rows scoped to current_user)
-                                  │
-                                  │  1 more OpenAI call, tool_choice="required"
-                                  │  tools: resolve_transaction, no_single_match
-                                  ├─ resolve_transaction(id) ──► id checked against the
-                                  │                               already-fetched list ──►
-                                  │                               1 more OpenAI call to explain
-                                  │                               it ──► TRANSACTION_EXPLANATION
-                                  └─ no_single_match(reason) ──► TRANSACTION_SELECTION
-                                                                  (fixed message + real DB rows)
+```mermaid
+flowchart TD
+    Browser["Browser (Next.js)"] -->|"fetch + Bearer JWT"| FastAPI
+
+    FastAPI -->|"POST /chat"| ChatTurn["orchestrator.chat_turn()"]
+    FastAPI -->|"POST /transactions/{id}/explain"| GetTxn["transaction_service.get_transaction_details()<br/>(plain authorized lookup, 404 if not caller's)"]
+    GetTxn -->|"1 OpenAI call: explain this JSON record,<br/>grounded in the customer's actual question"| TxnExplainDirect["TRANSACTION_EXPLANATION"]
+
+    ChatTurn -->|"1 OpenAI call, tool_choice=required<br/>tools: search_knowledge_base, get_recent_transactions,<br/>request_human_agent, respond_directly"| Route{"tool call(s)"}
+
+    Route -->|"request_human_agent present<br/>(bypasses everything else)"| Escalate["ESCALATE<br/>(fixed message + support contact)"]
+    Route -->|"respond_directly only"| SmallTalk["TEXT_ANSWER<br/>(greeting / small talk / capability gap)"]
+    Route -->|"search_knowledge_base and/or<br/>get_recent_transactions<br/>(a compound question triggers both)"| Dispatch["dedupe by tool name,<br/>run each once"]
+
+    Dispatch --> KbSearch["kb_service: pgvector cosine search,<br/>top 8 candidates"]
+    KbSearch --> KbFloor{"anything above<br/>the noise floor?"}
+    KbFloor -->|"no"| NoInfo["fixed 'I don't know'<br/>(no 2nd LLM call)"]
+    KbFloor -->|"1+ candidates"| KbJudge["1 more OpenAI call, tool_choice=required<br/>tools: answer_from_kb, insufficient_kb_info<br/>(answer_from_kb may be called more than once<br/>for a multi-part question - answers are merged)"]
+    KbJudge --> KbResult["TEXT_ANSWER (grounded or not)"]
+
+    Dispatch --> GetRecent["transaction_service:<br/>DB rows scoped to current_user"]
+    GetRecent --> Resolve["1 more OpenAI call, tool_choice=required<br/>tools: resolve_transactions, no_single_match"]
+    Resolve -->|"resolve_transactions (1 id)"| ExplainOne["1 more OpenAI call,<br/>grounded in the customer's actual question"]
+    ExplainOne --> TxnExplain["TRANSACTION_EXPLANATION"]
+    Resolve -->|"resolve_transactions (2+ ids)"| ExplainMany["1 more OpenAI call to summarize them"]
+    ExplainMany --> TxnSummary["TRANSACTION_SUMMARY"]
+    Resolve -->|"no_single_match(reason)"| Selection["TRANSACTION_SELECTION<br/>(fixed message + real DB rows)"]
+
+    KbResult -.->|"both tools called: merge into<br/>one response (_merge_responses)"| Merge(("merged<br/>ChatResponse"))
+    TxnExplain -.-> Merge
+    TxnSummary -.-> Merge
+    Selection -.-> Merge
 ```
 
-Postgres (with pgvector) sits behind the backend; nothing in the diagram above ever gives the model direct database access — every arrow into Postgres is a plain Python query the server runs itself.
+Postgres (with pgvector) sits behind the backend; nothing in the diagram above ever gives the model direct database access — every arrow into Postgres is a plain Python query the server runs itself. (The `/chat/stream` and `/transactions/{id}/explain/stream` SSE endpoints follow this same routing/dispatch logic with a judge-then-generate split so the final answer can stream token-by-token — see `docs/chat-tool-calling-flow.md` for that variant.)
 
 ### The trust boundary: how tool-calling is used, and why
 
-The rule behind most design decisions here: **the LLM never touches the database directly, and never decides whose data it's looking up.** `tools_schema.py` defines every tool the model can call, and none accept a `user_id` — `get_recent_transactions` takes zero arguments, since the authenticated user is bound server-side from the JWT (`get_current_user`) before any tool runs. When the model picks a specific transaction (`resolve_transaction(transaction_id)`), that id is checked against `txn_by_id` — a dict built from the list *already fetched for that user* — never a fresh, unscoped query; an unrecognized or injected id just falls back to the safe selection list, never a database hit. Every LLM call only ever sees a small, pre-fetched, already-authorized slice of data (a few retrieved articles, or one transaction record) and is told to answer only from it.
+The rule behind most design decisions here: **the LLM never touches the database directly, and never decides whose data it's looking up.** `tools_schema.py` defines every tool the model can call, and none accept a `user_id` — `get_recent_transactions` takes zero arguments, since the authenticated user is bound server-side from the JWT (`get_current_user`) before any tool runs. When the model picks specific transaction(s) (`resolve_transactions(transaction_ids)`), each id is checked against `txn_by_id` — a dict built from the list *already fetched for that user* — never a fresh, unscoped query; an unrecognized or injected id is silently dropped, never a database hit. Every LLM call only ever sees a small, pre-fetched, already-authorized slice of data (a few retrieved articles, or one or more transaction records) and is told to answer only from it.
 
-**Two decision points, six tool schemas.** Call 1 (`tool_choice="auto"`) picks `search_knowledge_base` vs `get_recent_transactions` — intent routing. Each branch then forces a second tool choice rather than letting the model reply in plain text: the KB branch picks `answer_from_kb` vs `insufficient_kb_info`, the transaction branch picks `resolve_transaction` vs `no_single_match`. This pattern exists because an earlier version let the model "just reply" when unsure, and it would narrate the whole transaction list back as Markdown prose instead of using the card UI. Forcing a tool choice means the model's only way to communicate is a shape the server already validates — fixed UI-facing strings (`"Here are your recent transactions:"`, etc.) are chosen by the server, never written by the model. Every response is a `{type, message, data}` shape (`schemas/chat.py`); the frontend switches on `type` and never parses prose to figure out what happened.
+**Two decision points, eight tool schemas.** Call 1 (`tool_choice="required"`) always picks at least one of `search_knowledge_base`, `get_recent_transactions`, `request_human_agent`, or `respond_directly` — intent routing, with no free-form-reply escape hatch (an earlier `tool_choice="auto"` version could skip every tool and answer, or fabricate, from general knowledge). A compound question can make it pick more than one tool at once, dispatched and merged (see `_merge_responses`) rather than acting on only the first. Each real branch then forces a second tool choice rather than letting the model reply in plain text: the KB branch picks `answer_from_kb` vs `insufficient_kb_info`, the transaction branch picks `resolve_transactions` vs `no_single_match`. This pattern exists because an earlier version let the model "just reply" when unsure, and it would narrate the whole transaction list back as Markdown prose instead of using the card UI. Forcing a tool choice means the model's only way to communicate is a shape the server already validates — fixed UI-facing strings (`"Here are your recent transactions:"`, etc.) are chosen by the server, never written by the model. Every response is a `{type, message, data}` shape (`schemas/chat.py`); the frontend switches on `type` and never parses prose to figure out what happened.
 
 ### Embeddings and knowledge-base retrieval
 
