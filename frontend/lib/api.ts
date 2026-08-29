@@ -70,10 +70,15 @@ export function sendChatMessage(token: string, message: string, conversationId: 
   });
 }
 
-export function explainTransaction(token: string, transactionId: string): Promise<ChatResponse> {
+export function explainTransaction(
+  token: string,
+  transactionId: string,
+  conversationId: string | null
+): Promise<ChatResponse> {
   return request<ChatResponse>(`/transactions/${transactionId}/explain`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ conversation_id: conversationId }),
   });
 }
 

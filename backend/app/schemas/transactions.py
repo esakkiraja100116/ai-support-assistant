@@ -18,3 +18,7 @@ class TransactionDetailOut(TransactionOut):
     failure_reason: str | None = None
     payment_method: str
     updated_at: datetime
+
+
+class ExplainRequest(BaseModel):
+    conversation_id: str | None = None

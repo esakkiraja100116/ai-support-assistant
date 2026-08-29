@@ -77,18 +77,19 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       setMessages((prev) => [...prev, placeholder]);
 
       try {
-        const response = await explainTransaction(session.accessToken, transactionId);
+        const response = await explainTransaction(session.accessToken, transactionId, conversationId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, status: "sent", text: response.message, response } : m
           )
         );
+        onTurnComplete?.();
       } catch (err) {
         const message = err instanceof ApiError ? err.message : "Something went wrong.";
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, status: "error", text: message } : m)));
       }
     },
-    [session]
+    [session, conversationId, onTurnComplete]
   );
 
   const retry = useCallback(
@@ -114,12 +115,13 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       } else {
         if (!session) return;
         try {
-          const response = await explainTransaction(session.accessToken, target.retry.transactionId);
+          const response = await explainTransaction(session.accessToken, target.retry.transactionId, conversationId);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId ? { ...m, status: "sent", text: response.message, response } : m
             )
           );
+          onTurnComplete?.();
         } catch (err) {
           const message = err instanceof ApiError ? err.message : "Something went wrong.";
           setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "error", text: message } : m)));
