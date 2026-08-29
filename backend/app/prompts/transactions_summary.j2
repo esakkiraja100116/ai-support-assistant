@@ -1,0 +1,7 @@
+{% include "base_prompt.j2" %}
+
+The customer asked: "{{ original_question }}"
+
+Using ONLY the following JSON transaction records, answer their question, covering every record listed below. If they asked about failures, explain why using each record's failure_reason (or state that it succeeded/is pending, as applicable). If they asked about payment methods, include each one's payment_method. Do not invent a status, amount, reason, date, or payment method that is not present in the JSON.
+
+{{ records_json }}

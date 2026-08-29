@@ -8,6 +8,15 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     chat_model: str = "gpt-4o-mini"
     embedding_model: str = "text-embedding-3-small"
+    # The transaction-resolve step (deciding which transaction(s) a customer means,
+    # including status-aware language like "my last purchase"/"how much did I pay")
+    # measurably needs a stronger model than chat_model: gpt-4o-mini confidently picked
+    # a PENDING transaction for a "how much did I pay" question, ignoring an explicit
+    # instruction that PENDING/FAILED != paid; gpt-5.6-sol got it right on the same
+    # prompt. reasoning_effort="none" is required for this model to support tool
+    # calls on the Chat Completions API at all - see docs/judgment-model-comparison.md.
+    resolve_model: str = "gpt-5.6-sol"
+    resolve_reasoning_effort: str | None = "none"
     jwt_secret: str = "dev-secret-change-me"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 120

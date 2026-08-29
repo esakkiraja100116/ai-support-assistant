@@ -35,25 +35,33 @@ GET_RECENT_TRANSACTIONS = {
     },
 }
 
-RESOLVE_TRANSACTION = {
+RESOLVE_TRANSACTIONS = {
     "type": "function",
     "function": {
-        "name": "resolve_transaction",
+        "name": "resolve_transactions",
         "description": (
-            "Call this once you can tell, from the customer's message, exactly which single "
-            "transaction (from the list you were given) they mean - e.g. by recency ('my last "
-            "purchase', 'most recent'), status ('the one that failed'), product, amount, or "
-            "position in the list. Only call this when you are confident about a single match."
+            "Call this once you can tell, from the customer's message, which specific "
+            "transaction(s) - one or more - they mean, from the list you were given. Works for "
+            "a single transaction ('my last purchase', 'the one that failed') or several ('my "
+            "last 3 transactions', 'the failed ones', 'my recent sells'). "
+            "\n\n"
+            "When interpreting recency or status language, use the actual status field: 'paid', "
+            "'completed', or 'successful' means status=SUCCESS - a PENDING or FAILED transaction "
+            "has NOT been paid, so don't pick one of those for a 'how much did I pay' style "
+            "question even if it happens to be more recent by date. "
+            "\n\n"
+            "Only call this when you are confident about which transaction(s) match - do not guess."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "transaction_id": {
-                    "type": "string",
-                    "description": "The id of the single matching transaction from the provided list.",
+                "transaction_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "ids of the matching transaction(s), from the provided list.",
                 },
             },
-            "required": ["transaction_id"],
+            "required": ["transaction_ids"],
         },
     },
 }

@@ -10,6 +10,7 @@ class ChatResponseType(str, Enum):
     TEXT_ANSWER = "TEXT_ANSWER"
     TRANSACTION_SELECTION = "TRANSACTION_SELECTION"
     TRANSACTION_EXPLANATION = "TRANSACTION_EXPLANATION"
+    TRANSACTION_SUMMARY = "TRANSACTION_SUMMARY"
     ERROR = "ERROR"
 
 
@@ -35,6 +36,10 @@ class TransactionSelectionData(BaseModel):
 
 class TransactionExplanationData(BaseModel):
     transaction: TransactionDetailOut
+
+
+class TransactionSummaryData(BaseModel):
+    transactions: list[TransactionDetailOut]
 
 
 class ErrorData(BaseModel):
@@ -69,6 +74,14 @@ class ChatResponse(BaseModel):
             type=ChatResponseType.TRANSACTION_EXPLANATION,
             message=message,
             data=TransactionExplanationData(transaction=transaction).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def transaction_summary(cls, message: str, transactions: list[TransactionDetailOut]) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.TRANSACTION_SUMMARY,
+            message=message,
+            data=TransactionSummaryData(transactions=transactions).model_dump(mode="json"),
         )
 
     @classmethod

@@ -3,11 +3,13 @@ import {
   TextAnswerData,
   TransactionExplanationData,
   TransactionSelectionData,
+  TransactionsSummaryData,
 } from "@/lib/types";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { TransactionDetail } from "./TransactionDetail";
 import { TransactionSelector } from "./TransactionSelector";
+import { TransactionsSummary } from "./TransactionsSummary";
 
 interface Props {
   message: ChatUIMessage;
@@ -61,6 +63,14 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
     return (
       <div className="message-row assistant">
         <TransactionDetail data={response.data as TransactionExplanationData} message={response.message} />
+      </div>
+    );
+  }
+
+  if (response.type === "TRANSACTION_SUMMARY") {
+    return (
+      <div className="message-row assistant">
+        <TransactionsSummary data={response.data as TransactionsSummaryData} message={response.message} />
       </div>
     );
   }

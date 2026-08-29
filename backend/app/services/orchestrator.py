@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models import Transaction, User
 from app.schemas.chat import ChatMessage, ChatResponse
 from app.schemas.transactions import TransactionOut
@@ -13,7 +14,7 @@ from app.services.tools_schema import (
     ANSWER_FROM_KB,
     INSUFFICIENT_KB_INFO,
     NO_SINGLE_MATCH,
-    RESOLVE_TRANSACTION,
+    RESOLVE_TRANSACTIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -174,15 +175,27 @@ def _handle_recent_transactions(
     selection_message = SELECTION_MESSAGES["ambiguous"]
     try:
         resolved = llm_client.chat_completion(
-            resolve_messages, tools=[RESOLVE_TRANSACTION, NO_SINGLE_MATCH], tool_choice="required"
+            resolve_messages,
+            tools=[RESOLVE_TRANSACTIONS, NO_SINGLE_MATCH],
+            tool_choice="required",
+            model=settings.resolve_model,
+            reasoning_effort=settings.resolve_reasoning_effort,
         )
         for call in getattr(resolved, "tool_calls", None) or []:
             args = json.loads(call.function.arguments or "{}")
-            if call.function.name == "resolve_transaction":
-                chosen = txn_by_id.get(args.get("transaction_id"))
-                if chosen is not None:
+            if call.function.name == "resolve_transactions":
+                # Only ids that are actually in this user's own fetched list count - a
+                # hallucinated or injected id is silently dropped, never looked up fresh.
+                ids = [i for i in args.get("transaction_ids", []) if i in txn_by_id]
+                if len(ids) == 1:
+                    chosen = txn_by_id[ids[0]]
                     explanation = explain_transaction(chosen, user.display_name)
                     return ChatResponse.transaction_explanation(explanation, chosen)
+                if len(ids) > 1:
+                    chosen = [txn_by_id[i] for i in ids]
+                    explanation = explain_transactions(chosen, message, user.display_name)
+                    return ChatResponse.transaction_summary(explanation, chosen)
+                # ids empty (every id hallucinated) - fall through to the safe list below
             elif call.function.name == "no_single_match":
                 selection_message = SELECTION_MESSAGES.get(args.get("reason"), SELECTION_MESSAGES["ambiguous"])
     except Exception:
@@ -191,11 +204,8 @@ def _handle_recent_transactions(
     return ChatResponse.transaction_selection(selection_message, txn_out)
 
 
-def explain_transaction(transaction: Transaction, display_name: str) -> str:
-    """Turns one already-authorized, already-fetched transaction record into a
-    friendly explanation. Deliberately not routed through intent classification:
-    the user's card click is already an unambiguous, explicit action."""
-    record = {
+def _transaction_record(transaction: Transaction) -> dict:
+    return {
         "id": transaction.id,
         "type": transaction.type,
         "product": transaction.product,
@@ -206,7 +216,15 @@ def explain_transaction(transaction: Transaction, display_name: str) -> str:
         "created_at": transaction.created_at.isoformat(),
         "updated_at": transaction.updated_at.isoformat(),
     }
-    system_prompt = prompts.render("transaction_explain.j2", record_json=json.dumps(record), display_name=display_name)
+
+
+def explain_transaction(transaction: Transaction, display_name: str) -> str:
+    """Turns one already-authorized, already-fetched transaction record into a
+    friendly explanation. Deliberately not routed through intent classification:
+    the user's card click is already an unambiguous, explicit action."""
+    system_prompt = prompts.render(
+        "transaction_explain.j2", record_json=json.dumps(_transaction_record(transaction)), display_name=display_name
+    )
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": "Explain this transaction to me."},
@@ -219,8 +237,36 @@ def explain_transaction(transaction: Transaction, display_name: str) -> str:
         return _fallback_explanation(transaction)
 
 
+def explain_transactions(transactions: list[Transaction], original_question: str, display_name: str) -> str:
+    """Same idea as explain_transaction, generalized to several already-authorized,
+    already-fetched records at once (e.g. "my last 3 transactions, which failed and
+    why, with payment method for each") - one grounded answer covering all of them,
+    never inventing a field not present in the JSON."""
+    records_json = json.dumps([_transaction_record(t) for t in transactions])
+    system_prompt = prompts.render(
+        "transactions_summary.j2",
+        records_json=records_json,
+        original_question=original_question,
+        display_name=display_name,
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": original_question},
+    ]
+    try:
+        final = llm_client.chat_completion(messages)
+        return final.content or _fallback_summary(transactions)
+    except Exception:
+        logger.exception("Chat completion (transaction summary) failed")
+        return _fallback_summary(transactions)
+
+
 def _fallback_explanation(transaction: Transaction) -> str:
     text = f"Your {transaction.type} of {transaction.product} for {transaction.amount} is {transaction.status}."
     if transaction.failure_reason:
         text += f" Reason: {transaction.failure_reason}."
     return text
+
+
+def _fallback_summary(transactions: list[Transaction]) -> str:
+    return " ".join(_fallback_explanation(t) for t in transactions)

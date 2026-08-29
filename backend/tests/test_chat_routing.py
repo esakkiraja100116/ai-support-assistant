@@ -33,7 +33,7 @@ def test_chat_shows_selection_cards_only_when_ambiguous(
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         if "get_recent_transactions" in _tool_names(tools):
             return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
-        if "resolve_transaction" in _tool_names(tools):
+        if "resolve_transactions" in _tool_names(tools):
             # The model can't resolve one specific transaction from an explicit list request.
             return _FakeMessage(
                 tool_calls=[_FakeToolCall("no_single_match", '{"reason": "list_requested"}')]
@@ -63,9 +63,9 @@ def test_chat_resolves_specific_transaction_without_showing_cards(
         names = _tool_names(tools)
         if "get_recent_transactions" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
-        if "resolve_transaction" in names:
+        if "resolve_transactions" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("resolve_transaction", f'{{"transaction_id": "{failed_txn.id}"}}')]
+                tool_calls=[_FakeToolCall("resolve_transactions", f'{{"transaction_ids": ["{failed_txn.id}"]}}')]
             )
         return _FakeMessage(content="Your purchase failed because the card was declined.")
 
@@ -77,6 +77,45 @@ def test_chat_resolves_specific_transaction_without_showing_cards(
     body = resp.json()
     assert body["type"] == "TRANSACTION_EXPLANATION"
     assert body["data"]["transaction"]["id"] == "txn_failed"
+
+
+def test_chat_summarizes_multiple_resolved_transactions(
+    client, make_user, make_transaction, auth_headers, monkeypatch
+):
+    alice = make_user("alice", "Alice")
+    t1 = make_transaction(alice, "txn_1", status="FAILED", failure_reason="Card declined")
+    t2 = make_transaction(alice, "txn_2", status="SUCCESS")
+    t3 = make_transaction(alice, "txn_3", status="PENDING")
+    # A transaction belonging to someone else - must never leak into the summary
+    # even if the model somehow named it.
+    bob = make_user("bob", "Bob")
+    make_transaction(bob, "txn_bob_1")
+
+    def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
+        names = _tool_names(tools)
+        if "get_recent_transactions" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "resolve_transactions" in names:
+            ids = [t1.id, t2.id, t3.id, "txn_bob_1"]
+            return _FakeMessage(
+                tool_calls=[_FakeToolCall("resolve_transactions", f'{{"transaction_ids": {ids}}}'.replace("'", '"'))]
+            )
+        return _FakeMessage(content="1 of your last 3 failed due to a declined card; the others succeeded or are pending.")
+
+    monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
+
+    resp = client.post(
+        "/chat",
+        json={"message": "show me my last 3 transactions and tell me which failed and why"},
+        headers=auth_headers(alice),
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] == "TRANSACTION_SUMMARY"
+    returned_ids = [t["id"] for t in body["data"]["transactions"]]
+    assert set(returned_ids) == {t1.id, t2.id, t3.id}
+    assert "txn_bob_1" not in returned_ids
 
 
 def test_chat_falls_back_to_selection_if_resolved_id_not_in_users_list(
@@ -92,9 +131,9 @@ def test_chat_falls_back_to_selection_if_resolved_id_not_in_users_list(
         names = _tool_names(tools)
         if "get_recent_transactions" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
-        if "resolve_transaction" in names:
+        if "resolve_transactions" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("resolve_transaction", '{"transaction_id": "txn_someone_elses"}')]
+                tool_calls=[_FakeToolCall("resolve_transactions", '{"transaction_ids": ["txn_someone_elses"]}')]
             )
         return _FakeMessage(content="")
 

@@ -2,6 +2,7 @@ export type ChatResponseType =
   | "TEXT_ANSWER"
   | "TRANSACTION_SELECTION"
   | "TRANSACTION_EXPLANATION"
+  | "TRANSACTION_SUMMARY"
   | "ERROR";
 
 export interface TransactionSummary {
@@ -32,6 +33,10 @@ export interface TransactionExplanationData {
   transaction: TransactionDetail;
 }
 
+export interface TransactionsSummaryData {
+  transactions: TransactionDetail[];
+}
+
 export interface ErrorData {
   code: string;
   detail: string;
@@ -40,7 +45,13 @@ export interface ErrorData {
 export interface ChatResponse {
   type: ChatResponseType;
   message: string;
-  data: TextAnswerData | TransactionSelectionData | TransactionExplanationData | ErrorData | null;
+  data:
+    | TextAnswerData
+    | TransactionSelectionData
+    | TransactionExplanationData
+    | TransactionsSummaryData
+    | ErrorData
+    | null;
 }
 
 export interface ChatHistoryEntry {
