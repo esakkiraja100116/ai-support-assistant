@@ -11,6 +11,7 @@ class ChatResponseType(str, Enum):
     TRANSACTION_SELECTION = "TRANSACTION_SELECTION"
     TRANSACTION_EXPLANATION = "TRANSACTION_EXPLANATION"
     TRANSACTION_SUMMARY = "TRANSACTION_SUMMARY"
+    ESCALATE = "ESCALATE"
     ERROR = "ERROR"
 
 
@@ -40,6 +41,10 @@ class TransactionExplanationData(BaseModel):
 
 class TransactionSummaryData(BaseModel):
     transactions: list[TransactionDetailOut]
+
+
+class EscalateData(BaseModel):
+    contact_email: str
 
 
 class ErrorData(BaseModel):
@@ -82,6 +87,14 @@ class ChatResponse(BaseModel):
             type=ChatResponseType.TRANSACTION_SUMMARY,
             message=message,
             data=TransactionSummaryData(transactions=transactions).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def escalate(cls, message: str, contact_email: str) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.ESCALATE,
+            message=message,
+            data=EscalateData(contact_email=contact_email).model_dump(),
         )
 
     @classmethod

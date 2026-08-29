@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 120
     kb_min_similarity: float = 0.30
     cors_origins: str = "http://localhost:3000"
+    support_contact_email: str = "support@example.com"
+    escalation_decline_threshold: int = 2
 
     @property
     def cors_origin_list(self) -> list[str]:

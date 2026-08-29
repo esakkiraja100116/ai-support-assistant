@@ -200,3 +200,92 @@ def test_chat_returns_error_response_when_llm_unavailable(client, make_user, aut
     assert resp.status_code == 200
     body = resp.json()
     assert body["type"] == "ERROR"
+
+
+def test_chat_escalates_on_explicit_human_request(client, make_user, auth_headers, monkeypatch):
+    """The customer doesn't need to have hit any decline at all - a direct
+    "I need a human" / "this isn't helping" should escalate immediately,
+    even for a first message with empty history."""
+    alice = make_user("alice", "Alice")
+
+    monkeypatch.setattr(
+        "app.services.orchestrator.llm_client.chat_completion",
+        lambda *a, **kw: _FakeMessage(tool_calls=[_FakeToolCall("request_human_agent")]),
+    )
+
+    resp = client.post("/chat", json={"message": "This isn't helping, I need a real person.", "history": []}, headers=auth_headers(alice))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] == "ESCALATE"
+    assert body["data"]["contact_email"]
+
+
+def test_chat_escalates_after_two_consecutive_kb_declines(client, make_user, auth_headers, monkeypatch):
+    from app.services.orchestrator import NO_INFO_MESSAGE
+
+    alice = make_user("alice", "Alice")
+
+    def _unexpected_call(*args, **kwargs):
+        raise AssertionError("Escalation must be decided before any LLM call, to save cost on this turn")
+
+    monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", _unexpected_call)
+
+    history = [
+        {"role": "user", "content": "Do you support international wire transfers?"},
+        {"role": "assistant", "content": NO_INFO_MESSAGE},
+        {"role": "user", "content": "What about the fees for a wire transfer?"},
+        {"role": "assistant", "content": NO_INFO_MESSAGE},
+    ]
+
+    resp = client.post("/chat", json={"message": "This isn't helping.", "history": history}, headers=auth_headers(alice))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] == "ESCALATE"
+    assert body["data"]["contact_email"]
+
+
+def test_chat_does_not_escalate_after_only_one_decline(client, make_user, auth_headers, monkeypatch):
+    from app.services.orchestrator import NO_INFO_MESSAGE
+
+    alice = make_user("alice", "Alice")
+
+    monkeypatch.setattr(
+        "app.services.orchestrator.llm_client.chat_completion",
+        lambda *a, **kw: _FakeMessage(content="Sure, happy to help with that."),
+    )
+
+    history = [
+        {"role": "user", "content": "Do you support international wire transfers?"},
+        {"role": "assistant", "content": NO_INFO_MESSAGE},
+    ]
+
+    resp = client.post("/chat", json={"message": "Never mind, how do I sell gold?", "history": history}, headers=auth_headers(alice))
+
+    assert resp.status_code == 200
+    assert resp.json()["type"] != "ESCALATE"
+
+
+def test_chat_escalation_resets_after_a_real_answer(client, make_user, auth_headers, monkeypatch):
+    from app.services.orchestrator import NO_INFO_MESSAGE
+
+    alice = make_user("alice", "Alice")
+
+    monkeypatch.setattr(
+        "app.services.orchestrator.llm_client.chat_completion",
+        lambda *a, **kw: _FakeMessage(content="Sure, happy to help with that."),
+    )
+
+    # Two declines, but a real answer happened after them - the trailing streak is 0.
+    history = [
+        {"role": "assistant", "content": NO_INFO_MESSAGE},
+        {"role": "assistant", "content": NO_INFO_MESSAGE},
+        {"role": "user", "content": "How do I sell gold?"},
+        {"role": "assistant", "content": "Open the app, go to Portfolio > Sell..."},
+    ]
+
+    resp = client.post("/chat", json={"message": "thanks, one more question", "history": history}, headers=auth_headers(alice))
+
+    assert resp.status_code == 200
+    assert resp.json()["type"] != "ESCALATE"

@@ -19,6 +19,21 @@ SEARCH_KNOWLEDGE_BASE = {
     },
 }
 
+REQUEST_HUMAN_AGENT = {
+    "type": "function",
+    "function": {
+        "name": "request_human_agent",
+        "description": (
+            "Call this when the customer explicitly asks to speak with a human/real agent, "
+            "asks to be connected to support staff, or clearly expresses that the assistant "
+            "isn't helping them (e.g. 'this isn't helping', 'I need a human', 'connect me to "
+            "someone', 'your bot is useless') - regardless of whether their underlying question "
+            "could otherwise be answered. This bypasses normal routing entirely."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
 GET_RECENT_TRANSACTIONS = {
     "type": "function",
     "function": {
@@ -144,7 +159,7 @@ INSUFFICIENT_KB_INFO = {
     },
 }
 
-ALL_TOOLS = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS]
+ALL_TOOLS = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS, REQUEST_HUMAN_AGENT]
 
 # The system prompt (and every other prompt this app sends) lives in
 # app/prompts/*.j2, rendered via app/services/prompts.py - see that module's

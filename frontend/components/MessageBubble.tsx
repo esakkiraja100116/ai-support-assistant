@@ -5,6 +5,7 @@ import {
   TransactionSelectionData,
   TransactionsSummaryData,
 } from "@/lib/types";
+import { EscalateCard } from "./EscalateCard";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { TransactionDetail } from "./TransactionDetail";
@@ -71,6 +72,14 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
     return (
       <div className="message-row assistant">
         <TransactionsSummary data={response.data as TransactionsSummaryData} message={response.message} />
+      </div>
+    );
+  }
+
+  if (response.type === "ESCALATE") {
+    return (
+      <div className="message-row assistant">
+        <EscalateCard message={response.message} />
       </div>
     );
   }

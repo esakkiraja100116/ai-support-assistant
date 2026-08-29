@@ -24,10 +24,30 @@ NO_INFO_MESSAGE = (
     "Could you rephrase, or ask about something else?"
 )
 
+ESCALATION_MESSAGE = "I'd be happy to connect you with a human support agent who can help further."
+
 SELECTION_MESSAGES = {
     "list_requested": "Here are your recent transactions:",
     "ambiguous": "Which transaction are you referring to?",
 }
+
+
+def _consecutive_trailing_declines(history: list[ChatMessage]) -> int:
+    """Counts consecutive KB declines at the end of the conversation, most-recent
+    assistant turn first. A "decline" is detected by an exact match against
+    NO_INFO_MESSAGE - a fixed constant this app itself always returns verbatim
+    for that case, never LLM-authored prose - so this is a reliable structural
+    check, not fragile text parsing. Resets to 0 as soon as a real answer
+    appears, so a customer who gets helped in between starts fresh."""
+    count = 0
+    for msg in reversed(history):
+        if msg.role != "assistant":
+            continue
+        if msg.content.strip() == NO_INFO_MESSAGE:
+            count += 1
+        else:
+            break
+    return count
 
 
 def chat_turn(
@@ -58,6 +78,14 @@ def _chat_turn(
     judgment_model: str | None = None,
     judgment_reasoning_effort: str | None = None,
 ) -> ChatResponse:
+    # Checked before any LLM call: two (settings.escalation_decline_threshold)
+    # consecutive KB declines in a row means this conversation has hit a wall -
+    # offer a human agent instead of a third generic "I don't know" (also saves
+    # the cost of the routing call on this turn). Bonus feature from the
+    # assignment's "human-agent escalation when confidence is low" idea.
+    if _consecutive_trailing_declines(history) >= settings.escalation_decline_threshold:
+        return ChatResponse.escalate(ESCALATION_MESSAGE, settings.support_contact_email)
+
     system_prompt = prompts.render("system_prompt.j2", display_name=user.display_name)
     messages = [{"role": "system", "content": system_prompt}]
     messages += [{"role": h.role, "content": h.content} for h in history]
@@ -81,6 +109,9 @@ def _chat_turn(
 
     if tool_name == "get_recent_transactions":
         return _handle_recent_transactions(db, user, message, history)
+
+    if tool_name == "request_human_agent":
+        return ChatResponse.escalate(ESCALATION_MESSAGE, settings.support_contact_email)
 
     logger.error("Model requested unsupported tool: %s", tool_name)
     return ChatResponse.error("unsupported_tool", "The assistant tried to use an unsupported action.")
