@@ -21,6 +21,7 @@ export function useAuth() {
       userId: result.user_id,
       displayName: result.display_name,
       username,
+      role: result.role as AuthSession["role"],
     };
     saveAuth(next);
     setSession(next);

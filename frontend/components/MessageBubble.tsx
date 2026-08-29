@@ -8,6 +8,7 @@ import {
 import { EscalateCard } from "./EscalateCard";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
+import { MarkdownText } from "./MarkdownText";
 import { TransactionDetail } from "./TransactionDetail";
 import { TransactionSelector } from "./TransactionSelector";
 import { TransactionsSummary } from "./TransactionsSummary";
@@ -51,7 +52,9 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
   if (response.type === "TRANSACTION_SELECTION") {
     return (
       <div className="message-row assistant">
-        <div className="bubble assistant-bubble">{response.message}</div>
+        <div className="bubble assistant-bubble">
+          <MarkdownText text={response.message} />
+        </div>
         <TransactionSelector
           data={response.data as TransactionSelectionData}
           onSelect={onSelectTransaction}
@@ -96,7 +99,7 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
   return (
     <div className="message-row assistant">
       <div className="bubble assistant-bubble">
-        {response.message}
+        <MarkdownText text={response.message} />
         {grounded === false && <div className="grounding-note">Not found in our knowledge base</div>}
       </div>
     </div>

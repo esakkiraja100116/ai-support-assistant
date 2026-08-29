@@ -2,9 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect } from "react";
+import { ChatSidebarContent } from "@/components/chat/ChatSidebarContent";
 import { ChatWindow } from "@/components/ChatWindow";
 import { LoginScreen } from "@/components/LoginScreen";
+import { DashboardShell } from "@/components/shell/DashboardShell";
 import { useAuth } from "@/hooks/useAuth";
+import { useConversations } from "@/hooks/useConversations";
 import { newConversationId } from "@/lib/session";
 
 function HomeInner() {
@@ -12,9 +15,15 @@ function HomeInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const conversationId = searchParams.get("c");
+  const { conversations, loading: conversationsLoading, refresh } = useConversations(session);
 
   useEffect(() => {
-    if (ready && session && !conversationId) {
+    if (!ready || !session) return;
+    if (session.role === "ADMINISTRATOR") {
+      router.replace("/admin");
+      return;
+    }
+    if (!conversationId) {
       router.replace(`/?c=${newConversationId()}`);
     }
   }, [ready, session, conversationId, router]);
@@ -23,7 +32,7 @@ function HomeInner() {
     router.push(`/?c=${newConversationId()}`);
   }
 
-  if (!ready || (session && !conversationId)) {
+  if (!ready || (session && session.role === "ADMINISTRATOR") || (session && !conversationId)) {
     return <div className="page-loading">Loading...</div>;
   }
 
@@ -32,12 +41,20 @@ function HomeInner() {
   }
 
   return (
-    <ChatWindow
+    <DashboardShell
       session={session}
-      conversationId={conversationId as string}
       onLogout={logout}
-      onNewChat={startNewChat}
-    />
+      sidebarContent={
+        <ChatSidebarContent
+          conversations={conversations}
+          loading={conversationsLoading}
+          activeConversationId={conversationId}
+          onNewChat={startNewChat}
+        />
+      }
+    >
+      <ChatWindow session={session} conversationId={conversationId as string} onTurnComplete={refresh} />
+    </DashboardShell>
   );
 }
 

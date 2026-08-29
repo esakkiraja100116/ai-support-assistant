@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.security import decode_access_token
 from app.db import get_db
-from app.models import User
+from app.models import Role, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
@@ -33,3 +33,13 @@ def get_current_user(
     if user is None:
         raise credentials_error
     return user
+
+
+def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
+    """The one dependency allowed to see data across all users - every other
+    endpoint scopes queries to current_user.id. Checked against the live
+    DB-loaded role (not the JWT's role claim), so a demoted admin loses
+    access immediately rather than waiting out the token's lifetime."""
+    if current_user.role != Role.ADMINISTRATOR:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Administrator access required")
+    return current_user

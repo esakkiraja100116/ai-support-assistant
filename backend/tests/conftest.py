@@ -76,8 +76,8 @@ def client(db_session):
 
 @pytest.fixture()
 def make_user(db_session):
-    def _make(username: str = "alice", display_name: str = "Alice") -> models.User:
-        user = models.User(username=username, display_name=display_name)
+    def _make(username: str = "alice", display_name: str = "Alice", role: str = "USER") -> models.User:
+        user = models.User(username=username, display_name=display_name, role=role)
         db_session.add(user)
         db_session.commit()
         db_session.refresh(user)
@@ -119,7 +119,51 @@ def make_transaction(db_session):
 @pytest.fixture()
 def auth_headers():
     def _headers(user: models.User) -> dict[str, str]:
-        token = create_access_token(str(user.id))
+        token = create_access_token(str(user.id), user.role)
         return {"Authorization": f"Bearer {token}"}
 
     return _headers
+
+
+@pytest.fixture()
+def make_conversation(db_session):
+    def _make(user: models.User, title: str = "Test conversation") -> models.Conversation:
+        conversation = models.Conversation(user_id=user.id, title=title)
+        db_session.add(conversation)
+        db_session.commit()
+        db_session.refresh(conversation)
+        return conversation
+
+    return _make
+
+
+@pytest.fixture()
+def make_message(db_session):
+    def _make(
+        conversation: models.Conversation,
+        role: str,
+        content: str,
+        response_type: str | None = None,
+        response_data: dict | None = None,
+        model_used: str | None = None,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        cost_usd: float | None = None,
+    ) -> models.Message:
+        message = models.Message(
+            conversation_id=conversation.id,
+            role=role,
+            content=content,
+            response_type=response_type,
+            response_data=response_data,
+            model_used=model_used,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=cost_usd,
+        )
+        db_session.add(message)
+        db_session.commit()
+        db_session.refresh(message)
+        return message
+
+    return _make

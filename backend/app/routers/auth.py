@@ -21,5 +21,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     user = db.scalar(select(User).where(User.username == payload.username))
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown username")
-    token = create_access_token(str(user.id))
-    return TokenResponse(access_token=token, user_id=str(user.id), display_name=user.display_name)
+    token = create_access_token(str(user.id), user.role)
+    return TokenResponse(
+        access_token=token, user_id=str(user.id), display_name=user.display_name, role=user.role
+    )

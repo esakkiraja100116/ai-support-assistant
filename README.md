@@ -93,7 +93,7 @@ Two earlier bugs in how articles get embedded, also worth noting: embedding `que
 
 ### Conversations, sessions, and why the backend stays stateless
 
-The backend keeps no server-side session — every `POST /chat` gets `message` + a trimmed `history` and forgets it immediately after responding. The **conversation id lives in the URL** (`?c=<uuid>`, minted on login or "New chat"); the frontend keeps messages in React state, mirrors them to `sessionStorage` keyed by `(userId, conversationId)`, and sends the last 10 turns back as history — including the actual transaction records shown earlier, not just the reply text, so a later "the second one" still resolves correctly. Trade-off: conversations don't survive a device switch — the first thing to change for production (see below).
+Conversations and their messages are persisted server-side in Postgres (`conversations`/`messages` tables) — the backend is the sole owner of this state. The **conversation id lives in the URL** (`?c=<uuid>`, minted on login or "New chat"); each turn is appended to the database before the response is returned, and the frontend hydrates a conversation's history via `GET /conversations/{id}` rather than keeping its own copy, so it survives a refresh or a device switch. A per-conversation title is generated from the first message via a cheap LLM call, and per-message cost/model data feeds the admin cost dashboard (see below).
 
 ## Testing
 
@@ -101,7 +101,7 @@ The backend keeps no server-side session — every `POST /chat` gets `message` +
 cd backend && pytest
 ```
 
-17 tests, all deterministic and offline (every OpenAI call is monkeypatched at the `llm_client` seam — no network access or API key needed). The two highest-value ones:
+43 tests, all deterministic and offline (every OpenAI call is monkeypatched at the `llm_client` seam — no network access or API key needed). The two highest-value ones:
 
 - **`test_transaction_authz.py`** — user A's JWT can fetch their own transaction (200) but never user B's (404), and `/transactions/recent` never returns another user's rows. This is the literal trust boundary described above, under test.
 - **`test_kb_grounding.py`** — asserts the below-threshold path returns `grounded: false` *and* that the second ("write the grounded answer") LLM call is never invoked in that case — the no-hallucination guard is tested as a structural fact, not just a prompt.
@@ -110,7 +110,7 @@ cd backend && pytest
 
 - **Security**: replace the no-password mock login with real authentication; add rate limiting on `/chat` (each call can trigger 1–3 OpenAI requests); add request size limits and stricter CORS in production.
 - **Observability**: per-`conversation_id` JSONL logging with per-call token/cost tracking exists (`backend/app/services/session_log.py`) and a coverage eval script (`scripts/eval_faq_coverage.py`) reports KB grounding rate across a 180-question fixture — but it's file-based and run by hand, not wired into a real dashboard, alerting, or latency tracing yet.
-- **Scalability**: persist conversations server-side (Postgres or Redis) instead of trimmed client-sent history, so a conversation survives a device switch and doesn't grow unbounded on the client; add an HNSW index on `support_articles.embedding` once the KB is large enough that brute-force search matters.
+- **Scalability**: add a Redis-backed cache in front of conversation/message reads to reduce DB load at scale, and/or Redis pub-sub to push live updates to the admin dashboard instead of polling; add an HNSW index on `support_articles.embedding` once the KB is large enough that brute-force search matters.
 - **Retrieval quality**: chunk longer articles instead of one-embedding-per-FAQ, add reranking over the candidate pool for large knowledge bases (fine to skip at ~18 articles, matters once it's hundreds), and surface citations in the UI (the backend already returns `sources`, the frontend doesn't show them yet).
 - **Cost**: cache embeddings for repeated/similar queries; consider a cheaper/faster model for the intent-routing and resolve steps versus the final answer-generation step.
 - **Escalation**: a "hand off to a human agent" action when the KB has no grounded answer twice in a row, or when a transaction explanation can't be generated — right now the fallback message just apologizes.

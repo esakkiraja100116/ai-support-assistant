@@ -18,8 +18,9 @@ from app.models import SupportArticle, Transaction, User  # noqa: E402
 from app.services import llm_client  # noqa: E402
 
 USERS = [
-    {"username": "alice", "display_name": "Alice Nguyen"},
-    {"username": "bob", "display_name": "Bob Fernandez"},
+    {"username": "alice", "display_name": "Alice Nguyen", "role": "USER"},
+    {"username": "bob", "display_name": "Bob Fernandez", "role": "USER"},
+    {"username": "admin", "display_name": "Amara Singh (Admin)", "role": "ADMINISTRATOR"},
 ]
 
 FAQS = [
@@ -57,12 +58,22 @@ TXN_TEMPLATES = [
 def seed() -> None:
     db = SessionLocal()
     try:
-        db.execute(text("TRUNCATE TABLE transactions, users, support_articles RESTART IDENTITY CASCADE"))
+        db.execute(
+            text(
+                "TRUNCATE TABLE messages, conversations, transactions, users, support_articles "
+                "RESTART IDENTITY CASCADE"
+            )
+        )
         db.commit()
 
         users = {}
         for spec in USERS:
-            user = User(id=uuid.uuid4(), username=spec["username"], display_name=spec["display_name"])
+            user = User(
+                id=uuid.uuid4(),
+                username=spec["username"],
+                display_name=spec["display_name"],
+                role=spec["role"],
+            )
             db.add(user)
             users[spec["username"]] = user
         db.flush()
@@ -70,6 +81,8 @@ def seed() -> None:
         txn_seq = 1001
         now = datetime.now(timezone.utc)
         for username, user in users.items():
+            if user.role == "ADMINISTRATOR":
+                continue
             for i, tpl in enumerate(TXN_TEMPLATES):
                 created = now - timedelta(days=len(TXN_TEMPLATES) - i)
                 db.add(
@@ -88,6 +101,11 @@ def seed() -> None:
                 )
                 txn_seq += 1
 
+        # Committed before embedding starts: users/transactions require no
+        # external API and should land even if OPENAI_API_KEY is missing or
+        # invalid, rather than being rolled back by a later embedding failure.
+        db.commit()
+
         print(f"Embedding {len(FAQS)} support articles...")
         for question, answer, category in FAQS:
             # Embed the question only: incoming queries are phrased as questions,
@@ -97,7 +115,8 @@ def seed() -> None:
             db.add(SupportArticle(question=question, answer=answer, category=category, tags=[category], embedding=embedding))
 
         db.commit()
-        print(f"Seeded {len(users)} users, {len(users) * len(TXN_TEMPLATES)} transactions, {len(FAQS)} support articles.")
+        txn_count = sum(1 for u in users.values() if u.role != "ADMINISTRATOR") * len(TXN_TEMPLATES)
+        print(f"Seeded {len(users)} users, {txn_count} transactions, {len(FAQS)} support articles.")
     finally:
         db.close()
 

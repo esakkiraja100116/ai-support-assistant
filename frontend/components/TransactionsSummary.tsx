@@ -1,4 +1,5 @@
 import { TransactionDetail, TransactionsSummaryData } from "@/lib/types";
+import { MarkdownText } from "./MarkdownText";
 
 interface Props {
   data: TransactionsSummaryData;
@@ -34,7 +35,9 @@ function Facts({ txn }: { txn: TransactionDetail }) {
 export function TransactionsSummary({ data, message }: Props) {
   return (
     <div className="transaction-detail">
-      <p className="transaction-detail-message">{message}</p>
+      <div className="transaction-detail-message">
+        <MarkdownText text={message} />
+      </div>
       <details className="transaction-detail-toggle">
         <summary>View {data.transactions.length} transaction{data.transactions.length === 1 ? "" : "s"}</summary>
         {data.transactions.map((txn) => (

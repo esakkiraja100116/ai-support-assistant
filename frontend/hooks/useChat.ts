@@ -1,16 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, explainTransaction, sendChatMessage } from "@/lib/api";
-import { loadChatHistory, saveChatHistory } from "@/lib/session";
-import {
-  AuthSession,
-  ChatHistoryEntry,
-  ChatUIMessage,
-  TransactionSelectionData,
-} from "@/lib/types";
-
-const MAX_HISTORY_TURNS = 10;
+import { ApiError, explainTransaction, getConversation, sendChatMessage } from "@/lib/api";
+import { persistedToUIMessages } from "@/lib/messageMapping";
+import { AuthSession, ChatUIMessage } from "@/lib/types";
 
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -18,24 +11,7 @@ function newId(): string {
     : `${Date.now()}-${Math.random()}`;
 }
 
-// Assistant turns that showed a transaction list carry the actual records into
-// history (not just the human-facing "Which transaction..." text), so a later
-// follow-up like "the second one" or "the failed one" can still be resolved
-// even after the card list has scrolled out of view.
-function toHistory(messages: ChatUIMessage[]): ChatHistoryEntry[] {
-  return messages
-    .filter((m) => m.status === "sent")
-    .slice(-MAX_HISTORY_TURNS)
-    .map((m) => {
-      if (m.role === "assistant" && m.response?.type === "TRANSACTION_SELECTION") {
-        const data = m.response.data as TransactionSelectionData;
-        return { role: m.role, content: `${m.text}\n${JSON.stringify(data.transactions)}` };
-      }
-      return { role: m.role, content: m.text };
-    });
-}
-
-export function useChat(session: AuthSession | null, conversationId: string | null) {
+export function useChat(session: AuthSession | null, conversationId: string | null, onTurnComplete?: () => void) {
   const [messages, setMessages] = useState<ChatUIMessage[]>([]);
   const hydratedFor = useRef<string | null>(null);
 
@@ -46,22 +22,20 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       return;
     }
     const key = `${session.userId}:${conversationId}`;
-    if (hydratedFor.current !== key) {
-      setMessages(loadChatHistory(session.userId, conversationId));
-      hydratedFor.current = key;
-    }
-  }, [session, conversationId]);
+    if (hydratedFor.current === key) return;
+    hydratedFor.current = key;
 
-  useEffect(() => {
-    if (session && conversationId && hydratedFor.current === `${session.userId}:${conversationId}`) {
-      saveChatHistory(session.userId, conversationId, messages);
-    }
-  }, [messages, session, conversationId]);
+    getConversation(session.accessToken, conversationId)
+      .then((detail) => setMessages(persistedToUIMessages(detail.messages)))
+      // A 404 just means this conversation id hasn't had its first turn sent
+      // yet (a brand-new "New chat") - treat any hydration failure the same
+      // way, as an empty conversation, rather than surfacing an error state.
+      .catch(() => setMessages([]));
+  }, [session, conversationId]);
 
   const sendMessage = useCallback(
     async (text: string) => {
       if (!session || !conversationId) return;
-      const historyBefore = toHistory(messages);
       const userMessage: ChatUIMessage = { id: newId(), role: "user", status: "sent", text };
       const assistantId = newId();
       const assistantPlaceholder: ChatUIMessage = {
@@ -74,18 +48,19 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
 
       try {
-        const response = await sendChatMessage(session.accessToken, text, historyBefore, conversationId);
+        const response = await sendChatMessage(session.accessToken, text, conversationId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, status: "sent", text: response.message, response } : m
           )
         );
+        onTurnComplete?.();
       } catch (err) {
         const message = err instanceof ApiError ? err.message : "Something went wrong.";
         setMessages((prev) => (prev.map((m) => (m.id === assistantId ? { ...m, status: "error", text: message } : m))));
       }
     },
-    [session, messages, conversationId]
+    [session, conversationId, onTurnComplete]
   );
 
   const selectTransaction = useCallback(
@@ -102,18 +77,19 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       setMessages((prev) => [...prev, placeholder]);
 
       try {
-        const response = await explainTransaction(session.accessToken, transactionId);
+        const response = await explainTransaction(session.accessToken, transactionId, conversationId);
         setMessages((prev) =>
           prev.map((m) =>
             m.id === assistantId ? { ...m, status: "sent", text: response.message, response } : m
           )
         );
+        onTurnComplete?.();
       } catch (err) {
         const message = err instanceof ApiError ? err.message : "Something went wrong.";
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, status: "error", text: message } : m)));
       }
     },
-    [session]
+    [session, conversationId, onTurnComplete]
   );
 
   const retry = useCallback(
@@ -124,19 +100,14 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
 
       if (target.retry.kind === "chat") {
         if (!session || !conversationId) return;
-        const historyBefore = toHistory(messages.filter((m) => m.id !== messageId));
         try {
-          const response = await sendChatMessage(
-            session.accessToken,
-            target.retry.message,
-            historyBefore,
-            conversationId
-          );
+          const response = await sendChatMessage(session.accessToken, target.retry.message, conversationId);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId ? { ...m, status: "sent", text: response.message, response } : m
             )
           );
+          onTurnComplete?.();
         } catch (err) {
           const message = err instanceof ApiError ? err.message : "Something went wrong.";
           setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "error", text: message } : m)));
@@ -144,19 +115,20 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       } else {
         if (!session) return;
         try {
-          const response = await explainTransaction(session.accessToken, target.retry.transactionId);
+          const response = await explainTransaction(session.accessToken, target.retry.transactionId, conversationId);
           setMessages((prev) =>
             prev.map((m) =>
               m.id === messageId ? { ...m, status: "sent", text: response.message, response } : m
             )
           );
+          onTurnComplete?.();
         } catch (err) {
           const message = err instanceof ApiError ? err.message : "Something went wrong.";
           setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "error", text: message } : m)));
         }
       }
     },
-    [messages, session, conversationId]
+    [messages, session, conversationId, onTurnComplete]
   );
 
   return { messages, sendMessage, selectTransaction, retry };
