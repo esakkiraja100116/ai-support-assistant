@@ -175,4 +175,8 @@ export interface ChatUIMessage {
   text: string;
   response?: ChatResponse;
   retry?: RetryAction;
+  // True while text is still growing from SSE deltas - lets MessageBubble
+  // render plain text instead of markdown, since partially-streamed markdown
+  // (e.g. an unclosed **bold) renders incorrectly if parsed mid-stream.
+  streaming?: boolean;
 }

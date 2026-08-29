@@ -19,18 +19,67 @@ SEARCH_KNOWLEDGE_BASE = {
     },
 }
 
+RESPOND_DIRECTLY = {
+    "type": "function",
+    "function": {
+        "name": "respond_directly",
+        "description": (
+            "Call this ONLY for a true greeting with no support content at all (e.g. 'hi', "
+            "'hello', 'good morning') or pure small talk (e.g. 'thank you', 'how are you'). "
+            "Do NOT call this for any question about the platform's products, policies, fees, "
+            "pricing, or how-to topics - even if phrased casually or referencing general market "
+            "pricing/timing - those must go through search_knowledge_base instead. Do NOT call "
+            "this for any question about the customer's own transactions or orders, including "
+            "counts/aggregates over them (e.g. 'how many succeeded') - those must go through "
+            "get_recent_transactions instead."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reply": {
+                    "type": "string",
+                    "description": "The direct reply to the customer, addressing them by name.",
+                }
+            },
+            "required": ["reply"],
+        },
+    },
+}
+
 REQUEST_HUMAN_AGENT = {
     "type": "function",
     "function": {
         "name": "request_human_agent",
         "description": (
-            "Call this when the customer explicitly asks to speak with a human/real agent, "
+            "Call this ONLY when the customer explicitly asks to speak with a human/real agent, "
             "asks to be connected to support staff, or clearly expresses that the assistant "
             "isn't helping them (e.g. 'this isn't helping', 'I need a human', 'connect me to "
             "someone', 'your bot is useless') - regardless of whether their underlying question "
-            "could otherwise be answered. This bypasses normal routing entirely."
+            "could otherwise be answered. This bypasses normal routing entirely.\n\n"
+            "Never call this just because you are unsure what the customer means or which other "
+            "tool applies, or because a question is ambiguous or references something unclear "
+            "('that', 'it', 'the status') - uncertainty is not a request for a human. In that "
+            "case, use the conversation history to resolve what they're referring to and call "
+            "search_knowledge_base or get_recent_transactions instead, whichever fits."
         ),
-        "parameters": {"type": "object", "properties": {}},
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "trigger": {
+                    "type": "string",
+                    "enum": ["explicit_request", "frustration_expressed"],
+                    "description": (
+                        "'explicit_request' if the customer directly asked for a human/real agent or "
+                        "support staff. 'frustration_expressed' if they said this isn't helping/working "
+                        "or similar. If neither genuinely applies - you're just unsure what they mean, "
+                        "or a reference is ambiguous - do NOT call this tool: resolve the ambiguity from "
+                        "conversation history instead and call search_knowledge_base or "
+                        "get_recent_transactions, whichever fits."
+                    ),
+                },
+            },
+            "required": ["trigger"],
+        },
     },
 }
 
@@ -159,7 +208,47 @@ INSUFFICIENT_KB_INFO = {
     },
 }
 
-ALL_TOOLS = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS, REQUEST_HUMAN_AGENT]
+ALL_TOOLS = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS, REQUEST_HUMAN_AGENT, RESPOND_DIRECTLY]
+
+# --- Streaming variants -----------------------------------------------------
+# Used only by the streaming orchestrator path (orchestrator.chat_turn_stream).
+# These are judgment/routing-only versions of RESPOND_DIRECTLY/ANSWER_FROM_KB
+# with the answer-text field removed, since in the streaming flow the actual
+# reply text comes from a separate, later streamed plain-content call - never
+# from a tool-call argument. Kept fully separate from the non-streaming
+# RESPOND_DIRECTLY/ANSWER_FROM_KB above (which existing tests, eval scripts,
+# and the non-streaming /chat endpoint still use unmodified) rather than
+# changing those in place, to avoid any risk to the already-working path.
+
+RESPOND_DIRECTLY_ROUTE = {
+    "type": "function",
+    "function": {
+        "name": "respond_directly",
+        "description": RESPOND_DIRECTLY["function"]["description"],
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+ANSWER_FROM_KB_JUDGE = {
+    "type": "function",
+    "function": {
+        "name": "answer_from_kb",
+        "description": ANSWER_FROM_KB["function"]["description"],
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "source_article_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "ids of the article(s) that actually answer the question.",
+                },
+            },
+            "required": ["source_article_ids"],
+        },
+    },
+}
+
+ALL_TOOLS_STREAM = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS, REQUEST_HUMAN_AGENT, RESPOND_DIRECTLY_ROUTE]
 
 # The system prompt (and every other prompt this app sends) lives in
 # app/prompts/*.j2, rendered via app/services/prompts.py - see that module's

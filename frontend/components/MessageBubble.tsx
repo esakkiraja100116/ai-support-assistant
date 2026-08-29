@@ -29,6 +29,18 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
   }
 
   if (message.status === "pending") {
+    // While streaming, text grows delta-by-delta ("Hi" -> "Hi Alice" -> ...) -
+    // rendered as plain text, not markdown: a partially-streamed markup like
+    // an unclosed "**bold" renders incorrectly if parsed before it closes.
+    // Once the turn finalizes (status becomes "sent"), the branches below
+    // render the same text through MarkdownText.
+    if (message.streaming && message.text) {
+      return (
+        <div className="message-row assistant">
+          <div className="bubble assistant-bubble">{message.text}</div>
+        </div>
+      );
+    }
     return (
       <div className="message-row assistant">
         <div className="bubble assistant-bubble">

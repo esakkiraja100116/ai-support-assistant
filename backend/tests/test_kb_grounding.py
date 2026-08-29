@@ -107,6 +107,35 @@ def test_orchestrator_picks_correct_article_even_when_not_top_ranked(db_session,
     assert buy_gold.id not in result.data["sources"]
 
 
+def test_orchestrator_merges_multiple_answer_from_kb_calls_for_compound_question(db_session, make_user, monkeypatch):
+    """Regression test for a real bug: "how to buy and sell gold?" made the model issue
+    TWO separate answer_from_kb tool calls (one per article) instead of one call citing
+    both - the old code kept only the last one seen, silently dropping the other answer.
+    Both must be merged into one combined response covering the whole question."""
+    seeded_embedding = [1.0] + [0.0] * 1535
+    buy = _make_article(db_session, "How do I buy gold?", "Go to Buy, choose GOLD24 or GOLD22.", seeded_embedding)
+    sell = _make_article(db_session, "How do I sell my gold?", "Go to Sell, choose a quantity.", seeded_embedding)
+
+    monkeypatch.setattr("app.services.kb_service.llm_client.embed", lambda text: seeded_embedding)
+    monkeypatch.setattr(
+        "app.services.orchestrator.llm_client.chat_completion",
+        lambda *a, **kw: _FakeMessage(
+            tool_calls=[
+                _FakeToolCall("answer_from_kb", f'{{"answer": "{buy.answer}", "source_article_ids": [{buy.id}]}}'),
+                _FakeToolCall("answer_from_kb", f'{{"answer": "{sell.answer}", "source_article_ids": [{sell.id}]}}'),
+            ]
+        ),
+    )
+
+    alice = make_user("alice", "Alice")
+    result = orchestrator._handle_knowledge_base(db_session, alice, "how to buy and sell gold?")
+
+    assert result.data["grounded"] is True
+    assert set(result.data["sources"]) == {buy.id, sell.id}
+    assert buy.answer in result.message
+    assert sell.answer in result.message
+
+
 def test_orchestrator_declines_when_candidates_exist_but_none_relevant(db_session, make_user, monkeypatch):
     seeded_embedding = [1.0] + [0.0] * 1535
     _make_article(db_session, "How do I buy gold?", "Go to Buy...", seeded_embedding)

@@ -1,0 +1,8 @@
+{% include "base_prompt.j2" %}
+
+The following knowledge base article(s) were already judged to answer the customer's question. Using ONLY their content, write a clear, direct answer. Never invent a fact, number, or policy detail that isn't stated below. If the customer's message also asked about something else (e.g. their own transaction history) that these articles don't cover, ignore that part entirely - don't apologize for it or mention you can't help with it, since it's handled separately. Just answer the part these articles cover.
+
+{% for article in articles %}
+Q: {{ article.question }}
+A: {{ article.answer }}
+{% endfor %}

@@ -1,3 +1,4 @@
+import { fetchEventSource } from "@microsoft/fetch-event-source";
 import {
   AdminCostSummary,
   AdminTransaction,
@@ -62,24 +63,69 @@ export function login(
   });
 }
 
-export function sendChatMessage(token: string, message: string, conversationId: string): Promise<ChatResponse> {
-  return request<ChatResponse>("/chat", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ message, conversation_id: conversationId }),
-  });
+export interface StreamCallbacks {
+  onDelta: (text: string) => void;
+  onDone: (response: ChatResponse) => void;
+  onError: (message: string) => void;
 }
 
-export function explainTransaction(
+async function streamPost(path: string, body: object, token: string, callbacks: StreamCallbacks): Promise<void> {
+  try {
+    await fetchEventSource(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+      openWhenHidden: true,
+      async onopen(response) {
+        if (!response.ok) {
+          let detail = `Request failed (${response.status})`;
+          try {
+            detail = (await response.json()).detail || detail;
+          } catch {
+            // ignore body parse errors, use default detail
+          }
+          throw new ApiError(response.status, detail);
+        }
+      },
+      onmessage(ev) {
+        if (ev.event === "delta") {
+          callbacks.onDelta((JSON.parse(ev.data) as { text: string }).text);
+        } else if (ev.event === "done") {
+          callbacks.onDone(JSON.parse(ev.data) as ChatResponse);
+        }
+      },
+      onerror(err) {
+        callbacks.onError(err instanceof Error ? err.message : "Something went wrong.");
+        throw err; // stop fetchEventSource's built-in retry - this is a one-shot turn, not a live feed
+      },
+    });
+  } catch (err) {
+    if (!(err instanceof Error)) {
+      callbacks.onError("Something went wrong.");
+    }
+    // onerror above already reported Error/ApiError instances via callbacks.onError
+  }
+}
+
+export function streamChatMessage(
+  token: string,
+  message: string,
+  conversationId: string,
+  callbacks: StreamCallbacks
+): Promise<void> {
+  return streamPost("/chat/stream", { message, conversation_id: conversationId }, token, callbacks);
+}
+
+export function streamExplainTransaction(
   token: string,
   transactionId: string,
-  conversationId: string | null
-): Promise<ChatResponse> {
-  return request<ChatResponse>(`/transactions/${transactionId}/explain`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ conversation_id: conversationId }),
-  });
+  conversationId: string | null,
+  callbacks: StreamCallbacks
+): Promise<void> {
+  return streamPost(`/transactions/${transactionId}/explain/stream`, { conversation_id: conversationId }, token, callbacks);
 }
 
 export function listFaqArticles(): Promise<FaqArticle[]> {
