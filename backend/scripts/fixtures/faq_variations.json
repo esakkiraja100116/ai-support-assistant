@@ -1,0 +1,290 @@
+[
+  {
+    "faq_id": 1,
+    "original_question": "How do I sell my gold?",
+    "variations": [
+      "What steps do I need to follow to sell my gold?",
+      "Can you guide me on how to sell my gold through the app?",
+      "How can I go about selling my gold?",
+      "What do I need to do to sell my gold on the platform?",
+      "Is there a process for selling gold that I should know about?",
+      "Could you explain how to sell my gold using the app?",
+      "What\u2019s the procedure for selling gold here?",
+      "How might I sell my gold items?",
+      "What are the instructions for selling my gold?",
+      "How do I go about listing my gold for sale?"
+    ]
+  },
+  {
+    "faq_id": 2,
+    "original_question": "How do I buy gold?",
+    "variations": [
+      "What's the process for purchasing gold?",
+      "Can you guide me on how to buy GOLD24 or GOLD22?",
+      "What steps do I need to follow to buy gold?",
+      "How can I purchase gold on your platform?",
+      "Could you explain how to get gold?",
+      "What do I need to do to buy some gold?",
+      "How do I go about acquiring GOLD24 or GOLD22?",
+      "Is there a guide for buying gold that I can follow?",
+      "Can you tell me the way to buy gold?",
+      "What are the options for purchasing gold?"
+    ]
+  },
+  {
+    "faq_id": 3,
+    "original_question": "How does recurring savings work?",
+    "variations": [
+      "Can you explain how recurring savings operates?",
+      "What\u2019s the process for setting up a recurring savings plan?",
+      "How do I go about using a systematic savings plan?",
+      "Could you tell me how the recurring savings feature functions?",
+      "What are the details of the automatic gold purchase plan?",
+      "How does the automatic savings plan for gold purchases work?",
+      "What is the method for recurring savings on your platform?",
+      "Could you describe the way that systematic savings buying gold works?",
+      "How does your recurring plan for buying gold function?",
+      "What does it mean to use a recurring savings approach for gold?"
+    ]
+  },
+  {
+    "faq_id": 4,
+    "original_question": "What KYC documents do I need?",
+    "variations": [
+      "Can you tell me which KYC documents I need to provide?",
+      "What identification is required for KYC verification?",
+      "What documents do I need for KYC?",
+      "Could you list the KYC paperwork I'm supposed to submit?",
+      "What forms of ID and proof of address do I need for the KYC process?",
+      "Which IDs do I have to show for KYC purposes?",
+      "I'm not sure what KYC documents are necessary; can you clarify?",
+      "What do I need to bring for KYC verification?",
+      "Can you specify the KYC documents needed?",
+      "What are the requirements for KYC documentation?"
+    ]
+  },
+  {
+    "faq_id": 5,
+    "original_question": "Why might a transaction fail?",
+    "variations": [
+      "What could cause my transaction to not go through?",
+      "Why would my attempt to buy or sell gold be unsuccessful?",
+      "What are the typical reasons for a failed transaction?",
+      "Can you explain why a transaction might not be approved?",
+      "What might lead to a transaction not completing?",
+      "Why did my gold transaction fail?",
+      "What factors could result in a transaction being declined?",
+      "Is there a reason my transaction didn\u2019t process?",
+      "What should I look for if my transaction doesn't succeed?",
+      "What issues might prevent a successful transaction?"
+    ]
+  },
+  {
+    "faq_id": 6,
+    "original_question": "How long do payouts take?",
+    "variations": [
+      "What is the typical time frame for payouts?",
+      "How long will it take for my payout to reach my bank account?",
+      "After I sell gold, when can I expect to see my money?",
+      "What\u2019s the usual duration for processing payouts?",
+      "Can you tell me how many days it takes for a payout to be completed?",
+      "When should I anticipate my payout after selling?",
+      "How many business days does it usually take for payouts?",
+      "What\u2019s the waiting period for payouts to hit my bank?",
+      "Once I sell gold, how quickly are payouts processed?",
+      "How long before I receive my payout after a sale?"
+    ]
+  },
+  {
+    "faq_id": 7,
+    "original_question": "What fees do you charge?",
+    "variations": [
+      "Can you tell me what fees are involved?",
+      "What kind of charges should I expect?",
+      "Are there any fees for buying or selling gold?",
+      "What are the costs associated with using your platform?",
+      "Do you have any fees I should be aware of?",
+      "Could you explain the fees for transactions?",
+      "What are the charges when I trade gold on your site?",
+      "How much do you charge for each transaction?",
+      "Is there a breakdown of the fees I would incur?",
+      "What fees will I need to pay when buying or selling gold?"
+    ]
+  },
+  {
+    "faq_id": 8,
+    "original_question": "What does 24K vs 22K gold mean?",
+    "variations": [
+      "Can you explain the difference between 24K and 22K gold?",
+      "What do 24K and 22K gold indicate in terms of purity?",
+      "How does 24K gold compare to 22K gold?",
+      "What\u2019s the distinction between GOLD24 and GOLD22?",
+      "Could you clarify what 24K and 22K mean when it comes to gold?",
+      "What is the significance of 24K vs 22K in gold jewelry?",
+      "How pure is 24K gold compared to 22K gold?",
+      "Can you tell me what 24K and 22K gold mean?",
+      "What are the purity levels of 24K and 22K gold?",
+      "Why is 24K gold considered better than 22K gold?"
+    ]
+  },
+  {
+    "faq_id": 9,
+    "original_question": "How is my gold stored?",
+    "variations": [
+      "Where is my gold kept?",
+      "Can you tell me how my gold is stored?",
+      "I'm curious about the storage situation for my gold investment.",
+      "How does the platform handle the storage of my gold?",
+      "In what kind of facility is my gold stored?",
+      "What are the details on where my gold is held?",
+      "Is my gold kept securely somewhere?",
+      "How safe is the storage for my gold?",
+      "Can I find out more about the vaults where my gold is placed?",
+      "What do you do to store my gold safely?"
+    ]
+  },
+  {
+    "faq_id": 10,
+    "original_question": "How do I cancel a recurring savings plan?",
+    "variations": [
+      "What steps do I take to cancel my recurring savings plan?",
+      "Can you tell me how to stop a recurring savings plan?",
+      "How can I go about cancelling my active savings plan?",
+      "Is there a way to cancel my recurring savings plan?",
+      "How do I stop my subscription to the savings plan?",
+      "What\u2019s the process for cancelling a recurring savings plan?",
+      "Could you guide me on how to cancel my recurring plan?",
+      "I need help with cancelling my savings plan; what do I do?",
+      "What should I do to terminate my recurring savings plan?",
+      "Can you help me figure out how to cancel my savings plan?"
+    ]
+  },
+  {
+    "faq_id": 11,
+    "original_question": "What is the minimum investment amount?",
+    "variations": [
+      "How much do I need to invest at a minimum?",
+      "What's the smallest amount I can put in for investment?",
+      "Is there a minimum amount required for investing?",
+      "Can I start investing with a lower sum, and if so, how much?",
+      "What\u2019s the least I can invest in gold on your platform?",
+      "What is the entry-level investment to get started?",
+      "Do you have a minimum investment threshold?",
+      "How little can I invest to begin trading gold?",
+      "What\u2019s the minimum sum I can use to start my investment?",
+      "Is there a base investment amount for purchasing gold?"
+    ]
+  },
+  {
+    "faq_id": 12,
+    "original_question": "Do you have a referral program?",
+    "variations": [
+      "Is there a way to earn rewards for referring friends?",
+      "Do you offer any kind of referral program?",
+      "How can I refer someone and earn bonuses?",
+      "Can I get rewards for bringing new users to the platform?",
+      "Is there a referral system in place for your service?",
+      "What\u2019s the process to refer a friend and earn gold credit?",
+      "Do you have a program where I can refer others for rewards?",
+      "How do I share my referral code for a bonus?",
+      "Are there benefits for referring friends to buy gold?",
+      "Is there a way for me to earn gold by referring others?"
+    ]
+  },
+  {
+    "faq_id": 13,
+    "original_question": "How do I update my bank account for payouts?",
+    "variations": [
+      "What steps do I need to follow to change my bank account for receiving payouts?",
+      "Can you tell me how to modify my bank account information for payments?",
+      "I'm looking to update my bank details for payouts; how do I do that?",
+      "How can I switch my payout bank account to a new one?",
+      "What do I need to do to change my payout bank account?",
+      "Is there a way to update my bank account for getting paid?",
+      "How would I go about changing my bank account for receiving money?",
+      "Could you guide me on how to replace my current bank account for payouts?",
+      "What\u2019s the process for updating bank account information for payouts?",
+      "I need to update my banking info for payouts; what should I do?"
+    ]
+  },
+  {
+    "faq_id": 14,
+    "original_question": "Can I take physical delivery of my gold?",
+    "variations": [
+      "Is it possible to receive my gold in physical form?",
+      "Can I get my gold delivered as physical coins or bars?",
+      "Am I able to take delivery of my gold?",
+      "Can I have physical gold sent to me?",
+      "Do you allow customers to receive their gold physically?",
+      "How can I obtain my gold in a tangible format?",
+      "Is it an option to pick up my gold as physical coins or bars?",
+      "Are there any steps to take to get my gold delivered physically?",
+      "Can I arrange for my gold to be shipped to me as coins or bars?",
+      "What do I need to do to receive physical gold instead of just holding it?"
+    ]
+  },
+  {
+    "faq_id": 15,
+    "original_question": "What happens if I place an order when markets are closed?",
+    "variations": [
+      "What will occur if I make a purchase while the market is not open?",
+      "If I order when the market is closed, what happens to it?",
+      "Can you tell me what happens to my order if I place it after hours?",
+      "What should I expect if I decide to buy when the markets are shut?",
+      "If I place a gold order outside of trading hours, how will it be processed?",
+      "What\u2019s the process for orders made when markets are unavailable?",
+      "Could you explain what happens to my order if I submit it during market closure?",
+      "What occurs with my order if I attempt to purchase while the market is closed?",
+      "If I try to order gold after hours, what will happen?",
+      "How does placing an order when the market is closed affect my transaction?"
+    ]
+  },
+  {
+    "faq_id": 16,
+    "original_question": "How do I reset my account password?",
+    "variations": [
+      "What steps do I need to follow to change my password?",
+      "Can you tell me how to reset my password for my account?",
+      "I forgot my password; how can I get it reset?",
+      "Is there a way to retrieve or reset my password?",
+      "How can I go about changing my account password?",
+      "What should I do if I need to reset my password?",
+      "Could you guide me on how to reset my password?",
+      "I'm locked out; how do I reset my password?",
+      "Where can I find the option to reset my account password?",
+      "What is the procedure for recovering my password?"
+    ]
+  },
+  {
+    "faq_id": 17,
+    "original_question": "Is my investment insured?",
+    "variations": [
+      "Am I covered if something happens to my gold investment?",
+      "Is there insurance in place for the gold I\u2019ve invested in?",
+      "What kind of insurance is my gold secured with?",
+      "Does my gold investment have any protection against loss?",
+      "If my gold is lost or stolen, am I insured?",
+      "Can you tell me if my gold is insured for theft or damage?",
+      "Is there any coverage for my investment in gold?",
+      "How is my gold protected against theft and loss?",
+      "Should I be worried about losing my gold investment?",
+      "Does your vault offer insurance on my gold holdings?"
+    ]
+  },
+  {
+    "faq_id": 18,
+    "original_question": "How do I contact human customer support?",
+    "variations": [
+      "What's the best way to get in touch with customer support?",
+      "How can I talk to a real person if I need help?",
+      "Is there a way to contact a human agent for support?",
+      "I need assistance. How do I reach a customer support representative?",
+      "Can you tell me how to connect with human customer service?",
+      "What steps should I take to contact customer support directly?",
+      "When I need help, how can I speak to a live agent?",
+      "How do I reach out to a human for support?",
+      "Can I talk to an actual person for customer support?",
+      "What should I do if I want to contact a support team member?"
+    ]
+  }
+]

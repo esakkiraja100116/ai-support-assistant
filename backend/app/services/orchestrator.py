@@ -1,13 +1,21 @@
 import json
 import logging
+import uuid
 
 from sqlalchemy.orm import Session
 
 from app.models import Transaction, User
 from app.schemas.chat import ChatMessage, ChatResponse
 from app.schemas.transactions import TransactionOut
-from app.services import kb_service, llm_client, transaction_service
-from app.services.tools_schema import ALL_TOOLS, NO_SINGLE_MATCH, RESOLVE_TRANSACTION, SYSTEM_PROMPT
+from app.services import kb_service, llm_client, session_log, transaction_service
+from app.services.tools_schema import (
+    ALL_TOOLS,
+    ANSWER_FROM_KB,
+    INSUFFICIENT_KB_INFO,
+    NO_SINGLE_MATCH,
+    RESOLVE_TRANSACTION,
+    SYSTEM_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +30,22 @@ SELECTION_MESSAGES = {
 }
 
 
-def chat_turn(db: Session, user: User, message: str, history: list[ChatMessage]) -> ChatResponse:
+def chat_turn(
+    db: Session,
+    user: User,
+    message: str,
+    history: list[ChatMessage],
+    conversation_id: str | None = None,
+) -> ChatResponse:
+    session_id = conversation_id or f"anon-{uuid.uuid4()}"
+    with session_log.session_scope(session_id) as session:
+        session.log("user_message", user_id=str(user.id), content=message)
+        response = _chat_turn(db, user, message, history)
+        session.log("final_response", type=response.type.value, message=response.message, data=response.data)
+        return response
+
+
+def _chat_turn(db: Session, user: User, message: str, history: list[ChatMessage]) -> ChatResponse:
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     messages += [{"role": h.role, "content": h.content} for h in history]
     messages.append({"role": "user", "content": message})
@@ -61,32 +84,48 @@ def _handle_knowledge_base(db: Session, query: str) -> ChatResponse:
         logger.exception("Knowledge base search failed")
         return ChatResponse.error("kb_unavailable", "Search is temporarily unavailable. Please try again.")
 
-    if not result.grounded:
+    if not result.articles:
         return ChatResponse.text_answer(NO_INFO_MESSAGE, grounded=False)
 
-    context = "\n\n".join(f"Q: {a.question}\nA: {a.answer}" for a in result.articles)
+    # Relevance is judged by the model reading the actual content, not by the raw
+    # similarity ranking alone - a compound question ("do I need to pay extra if I
+    # purchase gold?") can score higher against an unrelated article ("How do I buy
+    # gold?") than the one that actually answers it ("What fees do you charge?"),
+    # since one clause of the question dominates the embedding. Widening the candidate
+    # pool (kb_service's top_k) and having the model pick the real answer out of it is
+    # far more robust than any single cosine cutoff.
+    articles_by_id = {a.id: a for a in result.articles}
+    context = "\n\n".join(f"[id={a.id}] Q: {a.question}\nA: {a.answer}" for a in result.articles)
     grounded_messages = [
         {
             "role": "system",
             "content": (
-                "Answer the customer's question using ONLY the following approved support "
-                "content. Do not add information that is not present here. Be concise and "
-                "friendly.\n\n" + context
+                "Here are knowledge base articles that may be relevant to the customer's "
+                "question:\n\n" + context + "\n\n"
+                "If one or more of them actually answer the question, call answer_from_kb. "
+                "If none of them do, call insufficient_kb_info. You must call exactly one of "
+                "these two tools - never answer in plain text, and never use information not "
+                "present in the articles above."
             ),
         },
         {"role": "user", "content": query},
     ]
     try:
-        final = llm_client.chat_completion(grounded_messages)
+        resolved = llm_client.chat_completion(
+            grounded_messages, tools=[ANSWER_FROM_KB, INSUFFICIENT_KB_INFO], tool_choice="required"
+        )
+        for call in getattr(resolved, "tool_calls", None) or []:
+            args = json.loads(call.function.arguments or "{}")
+            if call.function.name == "answer_from_kb" and args.get("answer"):
+                cited_ids = [i for i in args.get("source_article_ids", []) if i in articles_by_id]
+                return ChatResponse.text_answer(args["answer"], grounded=True, sources=cited_ids)
+            if call.function.name == "insufficient_kb_info":
+                return ChatResponse.text_answer(NO_INFO_MESSAGE, grounded=False)
     except Exception:
         logger.exception("Chat completion (grounded answer) failed")
         return ChatResponse.error("llm_unavailable", "The assistant is temporarily unavailable. Please try again.")
 
-    return ChatResponse.text_answer(
-        final.content or NO_INFO_MESSAGE,
-        grounded=True,
-        sources=[a.id for a in result.articles],
-    )
+    return ChatResponse.text_answer(NO_INFO_MESSAGE, grounded=False)
 
 
 def _handle_recent_transactions(

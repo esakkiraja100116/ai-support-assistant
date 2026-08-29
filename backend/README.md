@@ -45,9 +45,14 @@ See the root [README](../README.md#architecture) for the full request-flow walkt
 - `app/auth/` — mock login issues a signed JWT (`sub=user_id`, no password); `get_current_user` is a FastAPI dependency every protected route uses. Transaction lookups only ever filter by the JWT's `user_id` — never a client- or model-supplied id.
 - `app/services/llm_client.py` — the only module that talks to the OpenAI SDK. Tests monkeypatch this module directly.
 - `app/services/tools_schema.py` — every tool schema and the system prompt, in one place. None of them accept a user-id parameter, so the model can never supply or leak one.
-- `app/services/orchestrator.py` — the whole `POST /chat` decision tree: intent routing, knowledge-base grounding + threshold guard, and the transaction resolve-or-list step.
+- `app/services/orchestrator.py` — the whole `POST /chat` decision tree: intent routing, knowledge-base relevance judgment, and the transaction resolve-or-list step.
 - `scripts/seed.py` — idempotent (truncate + reinsert) seed of 2 users, 7 transactions each across all type/status combinations, and 18 FAQ articles, embedded on their **question text only** (see root README's embeddings section for why).
 - `scripts/eval_kb.py` — a small standing retrieval eval (`python -m scripts.eval_kb`), not part of `pytest`. Run it by hand after touching anything in the KB retrieval path (embedding input, threshold, seed content) — it's what caught the query-rephrasing regression documented in the root README.
+- `scripts/generate_faq_variations.py` / `scripts/eval_faq_coverage.py` — a larger retrieval eval: the first generates 10 alternative customer phrasings per seeded FAQ (committed as `scripts/fixtures/faq_variations.json`, 180 questions total) via one LLM call per FAQ; the second runs all 180 through the real `chat_turn()` (the same function `POST /chat` calls, not a shortcut) and reports how many were answered vs declined vs errored vs misrouted, per FAQ and overall, plus the run's total OpenAI cost. Also not part of `pytest` — run by hand (`python -m scripts.eval_faq_coverage`) after a retrieval or prompt change; it doesn't change any app code to make its own numbers look better.
+
+## Session logging & cost tracking
+
+Every `POST /chat` call is wrapped in a session (`app/services/session_log.py`), keyed by the request's `conversation_id`. Every LLM call the request makes — model, token counts, tool calls made, running cost — is appended as its own line to `logs/<conversation_id>.jsonl` (gitignored; created on first write, no setup needed). Cost is estimated from a small hardcoded pricing table (`app/services/pricing.py`) for `gpt-4o-mini` and `text-embedding-3-small` — update it there if your actual billing differs, nothing else needs to change. This is the same log every real chat request writes to; the eval scripts above use it for free by going through the same `chat_turn()`.
 
 ## Trade-offs / what I'd change for production
 

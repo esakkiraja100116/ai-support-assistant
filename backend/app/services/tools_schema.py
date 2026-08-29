@@ -85,6 +85,46 @@ NO_SINGLE_MATCH = {
     },
 }
 
+ANSWER_FROM_KB = {
+    "type": "function",
+    "function": {
+        "name": "answer_from_kb",
+        "description": (
+            "Call this if one or more of the provided knowledge base articles actually answer "
+            "the customer's question, even if the match isn't exact wording - e.g. an article "
+            "about fees does answer 'do I need to pay extra?'. Write the answer using ONLY the "
+            "content of the article(s) you cite."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string",
+                    "description": "The final answer for the customer, based only on the cited article(s).",
+                },
+                "source_article_ids": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "description": "ids of the article(s) actually used to answer.",
+                },
+            },
+            "required": ["answer", "source_article_ids"],
+        },
+    },
+}
+
+INSUFFICIENT_KB_INFO = {
+    "type": "function",
+    "function": {
+        "name": "insufficient_kb_info",
+        "description": (
+            "Call this if none of the provided knowledge base articles actually answer the "
+            "customer's question - don't guess or answer from general knowledge instead."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
 ALL_TOOLS = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS]
 
 SYSTEM_PROMPT = (

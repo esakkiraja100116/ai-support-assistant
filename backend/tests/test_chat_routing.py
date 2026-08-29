@@ -122,11 +122,19 @@ def test_chat_routes_general_question_to_knowledge_base_tool(client, make_user, 
     db_session.commit()
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto"):
-        if tools:
+        names = _tool_names(tools)
+        if "search_knowledge_base" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("search_knowledge_base")])
+        if "answer_from_kb" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("search_knowledge_base", '{"query": "How do I sell my gold?"}')]
+                tool_calls=[
+                    _FakeToolCall(
+                        "answer_from_kb",
+                        f'{{"answer": "You can sell your gold from the Sell screen.", "source_article_ids": [{article.id}]}}',
+                    )
+                ]
             )
-        return _FakeMessage(content="You can sell your gold from the Sell screen.")
+        return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
     monkeypatch.setattr("app.services.kb_service.llm_client.embed", lambda text: seeded_embedding)
@@ -137,6 +145,7 @@ def test_chat_routes_general_question_to_knowledge_base_tool(client, make_user, 
     body = resp.json()
     assert body["type"] == "TEXT_ANSWER"
     assert body["data"]["grounded"] is True
+    assert body["data"]["sources"] == [article.id]
 
 
 def test_chat_returns_error_response_when_llm_unavailable(client, make_user, auth_headers, monkeypatch):

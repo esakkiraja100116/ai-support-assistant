@@ -20,4 +20,4 @@ def chat(
     db: Session = Depends(get_db),
 ) -> ChatResponse:
     logger.info("chat_turn conversation_id=%s user_id=%s", payload.conversation_id, current_user.id)
-    return chat_turn(db, current_user, payload.message, payload.history)
+    return chat_turn(db, current_user, payload.message, payload.history, payload.conversation_id)
