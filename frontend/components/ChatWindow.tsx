@@ -20,7 +20,7 @@ export function ChatWindow({ session, conversationId, onTurnComplete }: Props) {
   const isBusy = messages.some((m) => m.status === "pending");
 
   return (
-    <div className="chat-window">
+    <div className="flex h-full flex-col bg-background">
       <MessageList
         messages={messages}
         onSelectTransaction={selectTransaction}

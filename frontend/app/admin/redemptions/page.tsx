@@ -1,9 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
 import { adminListRedemptionOrders } from "@/lib/api";
+import { statusBadgeClass } from "@/lib/statusStyles";
 import { AdminRedemptionOrder } from "@/lib/types";
+
+const columns: ColumnDef<AdminRedemptionOrder>[] = [
+  { accessorKey: "order_ref", header: "Order ref" },
+  { accessorKey: "display_name", header: "User" },
+  { accessorKey: "product_name", header: "Product" },
+  { accessorKey: "product_type", header: "Type" },
+  {
+    accessorKey: "quantity",
+    header: "Quantity",
+    cell: ({ row }) => `${row.original.quantity}g`,
+  },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => (
+      <Badge className={statusBadgeClass(row.original.status)}>{row.original.status}</Badge>
+    ),
+  },
+  {
+    accessorKey: "created_at",
+    header: "Created",
+    cell: ({ row }) => new Date(row.original.created_at).toLocaleString(),
+  },
+];
 
 export default function AdminRedemptionsPage() {
   const { session } = useAuth();
@@ -19,40 +47,20 @@ export default function AdminRedemptionsPage() {
       .finally(() => setLoading(false));
   }, [session]);
 
+  const data = useMemo(() => orders, [orders]);
+
   return (
-    <div className="admin-page">
-      <h1>Redemption Orders</h1>
-      {loading && <p className="muted">Loading...</p>}
-      {error && <p className="muted">{error}</p>}
+    <div className="flex h-full flex-col px-5 pt-6 pb-6">
+      <h1 className="mb-5 shrink-0 text-2xl font-semibold tracking-tight">Redemption Orders</h1>
+      {loading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {error && <p className="text-sm text-muted-foreground">{error}</p>}
       {!loading && !error && (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Order ref</th>
-                <th>User</th>
-                <th>Product</th>
-                <th>Type</th>
-                <th>Quantity</th>
-                <th>Status</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((o) => (
-                <tr key={o.order_ref}>
-                  <td>{o.order_ref}</td>
-                  <td>{o.display_name}</td>
-                  <td>{o.product_name}</td>
-                  <td>{o.product_type}</td>
-                  <td>{o.quantity}g</td>
-                  <td>{o.status}</td>
-                  <td>{new Date(o.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          searchPlaceholder="Search redemption orders..."
+          emptyMessage="No redemption orders found."
+        />
       )}
     </div>
   );

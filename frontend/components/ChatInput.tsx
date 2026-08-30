@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   onSend: (text: string) => void;
@@ -19,17 +21,18 @@ export function ChatInput({ onSend, disabled }: Props) {
   }
 
   return (
-    <form className="chat-input" onSubmit={handleSubmit}>
-      <input
+    <form className="flex shrink-0 gap-2 border-t bg-background p-3.5" onSubmit={handleSubmit}>
+      <Input
         type="text"
         placeholder="Type a message..."
         value={value}
         onChange={(e) => setValue(e.target.value)}
         disabled={disabled}
+        className="h-10 rounded-full px-4"
       />
-      <button type="submit" disabled={disabled || !value.trim()}>
+      <Button type="submit" disabled={disabled || !value.trim()} className="h-10 rounded-full px-5">
         Send
-      </button>
+      </Button>
     </form>
   );
 }

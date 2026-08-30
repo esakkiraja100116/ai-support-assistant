@@ -1,10 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import admin, auth, chat, conversations, faq, internal_tracking, redemptions, transactions
+from app.services import tracing
 
-app = FastAPI(title="Support Assistant API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    tracing.init_tracing()
+    yield
+
+
+app = FastAPI(title="Support Assistant API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

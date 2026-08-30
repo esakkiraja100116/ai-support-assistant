@@ -18,7 +18,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }, [ready, session, router]);
 
   if (!ready || !session || session.role !== "ADMINISTRATOR") {
-    return <div className="page-loading">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>;
   }
 
   return (

@@ -33,7 +33,7 @@ function HomeInner() {
   }
 
   if (!ready || (session && session.role === "ADMINISTRATOR") || (session && !conversationId)) {
-    return <div className="page-loading">Loading...</div>;
+    return <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>;
   }
 
   if (!session) {
@@ -60,7 +60,7 @@ function HomeInner() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="page-loading">Loading...</div>}>
+    <Suspense fallback={<div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
       <HomeInner />
     </Suspense>
   );

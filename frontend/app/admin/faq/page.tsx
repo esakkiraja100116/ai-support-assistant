@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { adminDeleteFaqArticle, listFaqArticles } from "@/lib/api";
 import { FaqArticle } from "@/lib/types";
@@ -35,33 +38,37 @@ export default function AdminFaqListPage() {
   }
 
   return (
-    <div className="admin-page">
-      <div className="admin-page-header">
-        <h1>FAQ articles</h1>
-        <Link href="/admin/faq/new" className="new-chat-button admin-page-header-action">
+    <div className="mx-auto max-w-3xl px-5 pt-6 pb-16">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">FAQ articles</h1>
+        <Button render={<Link href="/admin/faq/new" />} nativeButton={false}>
           + Add article
-        </Link>
+        </Button>
       </div>
-      {loading && <p className="muted">Loading...</p>}
-      {error && <p className="muted">{error}</p>}
+      {loading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {error && <p className="text-sm text-muted-foreground">{error}</p>}
       {!loading && !error && (
-        <div className="faq-admin-list">
-          {articles.length === 0 && <p className="muted">No articles yet.</p>}
+        <div className="flex flex-col gap-2.5">
+          {articles.length === 0 && <p className="text-sm text-muted-foreground">No articles yet.</p>}
           {articles.map((a) => (
-            <div key={a.id} className="faq-admin-item">
-              <div className="faq-admin-item-body">
-                <h3>{a.question}</h3>
-                <p>{a.answer}</p>
-                {a.category && <span className="faq-admin-item-category">{a.category}</span>}
-              </div>
-              <button
-                className="faq-admin-item-delete"
-                onClick={() => handleDelete(a.id)}
-                disabled={deletingId === a.id}
-              >
-                {deletingId === a.id ? "Deleting..." : "Delete"}
-              </button>
-            </div>
+            <Card key={a.id}>
+              <CardContent className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="mb-1.5 text-sm font-semibold">{a.question}</h3>
+                  <p className="mb-2 text-sm leading-relaxed text-foreground/80">{a.answer}</p>
+                  {a.category && <Badge variant="outline">{a.category}</Badge>}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => handleDelete(a.id)}
+                  disabled={deletingId === a.id}
+                >
+                  {deletingId === a.id ? "Deleting..." : "Delete"}
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

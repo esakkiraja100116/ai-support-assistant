@@ -14,7 +14,7 @@ export function TransactionSelector({ data, onSelect, disabled }: Props) {
   }
 
   return (
-    <div className="transaction-grid">
+    <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
       {data.transactions.map((txn) => (
         <TransactionCard key={txn.id} transaction={txn} onSelect={onSelect} disabled={disabled} />
       ))}

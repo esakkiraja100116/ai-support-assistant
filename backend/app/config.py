@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     tracking_circuit_breaker_cooldown_seconds: float = 30.0
     customer_display_timezone: str = "Asia/Kolkata"
 
+    # OpenTelemetry tracing (Grafana Cloud). Empty endpoint = tracing stays a
+    # no-op (OTel's default no-op provider), so local dev without these set
+    # and the test suite are both unaffected. `environment` distinguishes
+    # local-machine traces from the deployed backend's real traffic in
+    # Grafana - set ENVIRONMENT=cloud in the deployed backend's own env vars.
+    environment: str = "local"
+    otel_exporter_otlp_endpoint: str = ""
+    otel_exporter_otlp_headers: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
