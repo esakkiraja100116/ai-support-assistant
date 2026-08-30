@@ -29,6 +29,23 @@ class Settings(BaseSettings):
     support_contact_email: str = "support@example.com"
     escalation_decline_threshold: int = 2
 
+    # Redemption order tracking - Redis is a pure cache (no persistence needed,
+    # see docker-compose.yml), separate port from a dev machine's own default
+    # Redis to avoid local collisions, same reasoning as Postgres's 5433 remap.
+    redis_url: str = "redis://localhost:6380/0"
+    ongoing_redemptions_cache_ttl_seconds: int = 45
+    ongoing_redemptions_negative_cache_ttl_seconds: int = 20
+    tracking_cache_ttl_seconds: int = 90
+    tracking_stale_cache_ttl_seconds: int = 86400
+    tracking_lock_ttl_seconds: int = 8
+    internal_tracking_base_url: str = "http://localhost:8000"
+    tracking_timeout_seconds: float = 3.0
+    tracking_max_retries: int = 2
+    tracking_retry_backoff_seconds: float = 0.3
+    tracking_circuit_breaker_threshold: int = 3
+    tracking_circuit_breaker_cooldown_seconds: float = 30.0
+    customer_display_timezone: str = "Asia/Kolkata"
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

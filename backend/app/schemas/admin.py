@@ -2,6 +2,7 @@ import uuid
 
 from pydantic import BaseModel
 
+from app.schemas.redemptions import RedemptionOrderOut
 from app.schemas.transactions import TransactionDetailOut
 
 
@@ -11,10 +12,17 @@ class AdminUserOut(BaseModel):
     display_name: str
     role: str
     transaction_count: int
+    redemption_order_count: int
     conversation_count: int
 
 
 class AdminTransactionOut(TransactionDetailOut):
+    user_id: uuid.UUID
+    username: str
+    display_name: str
+
+
+class AdminRedemptionOrderOut(RedemptionOrderOut):
     user_id: uuid.UUID
     username: str
     display_name: str

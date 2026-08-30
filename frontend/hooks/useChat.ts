@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, getConversation, streamChatMessage, streamExplainTransaction } from "@/lib/api";
+import {
+  ApiError,
+  getConversation,
+  streamChatMessage,
+  streamExplainTransaction,
+  streamTrackRedemptionOrder,
+} from "@/lib/api";
 import { persistedToUIMessages } from "@/lib/messageMapping";
 import { AuthSession, ChatResponse, ChatUIMessage } from "@/lib/types";
 
@@ -118,6 +124,24 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
     [session, conversationId, makeCallbacks]
   );
 
+  const selectRedemptionOrder = useCallback(
+    async (orderRef: string) => {
+      if (!session) return;
+      const assistantId = newId();
+      const placeholder: ChatUIMessage = {
+        id: assistantId,
+        role: "assistant",
+        status: "pending",
+        text: "",
+        retry: { kind: "track", orderRef },
+      };
+      setMessages((prev) => [...prev, placeholder]);
+
+      await streamTrackRedemptionOrder(session.accessToken, orderRef, conversationId, makeCallbacks(assistantId));
+    },
+    [session, conversationId, makeCallbacks]
+  );
+
   const retry = useCallback(
     async (messageId: string) => {
       const target = messages.find((m) => m.id === messageId);
@@ -127,17 +151,19 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       if (target.retry.kind === "chat") {
         if (!conversationId) return;
         await streamChatMessage(session.accessToken, target.retry.message, conversationId, makeCallbacks(messageId));
-      } else {
+      } else if (target.retry.kind === "explain") {
         await streamExplainTransaction(
           session.accessToken,
           target.retry.transactionId,
           conversationId,
           makeCallbacks(messageId)
         );
+      } else {
+        await streamTrackRedemptionOrder(session.accessToken, target.retry.orderRef, conversationId, makeCallbacks(messageId));
       }
     },
     [messages, session, conversationId, makeCallbacks]
   );
 
-  return { messages, sendMessage, selectTransaction, retry };
+  return { messages, sendMessage, selectTransaction, selectRedemptionOrder, retry };
 }

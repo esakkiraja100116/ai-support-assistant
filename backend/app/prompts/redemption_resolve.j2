@@ -1,0 +1,6 @@
+{% include "base_prompt.j2" %}
+
+Here is the customer's ongoing redemption/delivery orders as JSON, ordered most recent first (this is the order it would be shown to them):
+{{ orders_json }}
+
+If the customer's message identifies exactly one specific order from this list, call resolve_redemption_order with its order_ref. Otherwise call no_single_redemption_match. You must call exactly one of these two tools - never answer in plain text, and never describe, list, or summarize the orders yourself.

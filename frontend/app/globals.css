@@ -425,6 +425,20 @@ body {
   font-weight: 500;
 }
 
+.tracking-history {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.tracking-history li {
+  color: #444;
+}
+
 .transactions-summary-item {
   padding-top: 10px;
   margin-top: 10px;

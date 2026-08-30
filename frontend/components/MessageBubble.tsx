@@ -1,5 +1,7 @@
 import {
   ChatUIMessage,
+  RedemptionSelectionData,
+  RedemptionTrackingData,
   TextAnswerData,
   TransactionExplanationData,
   TransactionSelectionData,
@@ -9,6 +11,8 @@ import { EscalateCard } from "./EscalateCard";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { MarkdownText } from "./MarkdownText";
+import { RedemptionOrderSelector } from "./RedemptionOrderSelector";
+import { RedemptionTrackingDetail } from "./RedemptionTrackingDetail";
 import { TransactionDetail } from "./TransactionDetail";
 import { TransactionSelector } from "./TransactionSelector";
 import { TransactionsSummary } from "./TransactionsSummary";
@@ -16,10 +20,11 @@ import { TransactionsSummary } from "./TransactionsSummary";
 interface Props {
   message: ChatUIMessage;
   onSelectTransaction: (id: string) => void;
+  onSelectRedemptionOrder: (orderRef: string) => void;
   onRetry: (id: string) => void;
 }
 
-export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) {
+export function MessageBubble({ message, onSelectTransaction, onSelectRedemptionOrder, onRetry }: Props) {
   if (message.role === "user") {
     return (
       <div className="message-row user">
@@ -87,6 +92,25 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
     return (
       <div className="message-row assistant">
         <TransactionsSummary data={response.data as TransactionsSummaryData} message={response.message} />
+      </div>
+    );
+  }
+
+  if (response.type === "REDEMPTION_SELECTION") {
+    return (
+      <div className="message-row assistant">
+        <div className="bubble assistant-bubble">
+          <MarkdownText text={response.message} />
+        </div>
+        <RedemptionOrderSelector data={response.data as RedemptionSelectionData} onSelect={onSelectRedemptionOrder} />
+      </div>
+    );
+  }
+
+  if (response.type === "REDEMPTION_TRACKING") {
+    return (
+      <div className="message-row assistant">
+        <RedemptionTrackingDetail data={response.data as RedemptionTrackingData} message={response.message} />
       </div>
     );
   }

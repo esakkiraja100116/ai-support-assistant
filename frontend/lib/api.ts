@@ -1,6 +1,7 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import {
   AdminCostSummary,
+  AdminRedemptionOrder,
   AdminTransaction,
   AdminUser,
   ChatResponse,
@@ -128,6 +129,15 @@ export function streamExplainTransaction(
   return streamPost(`/transactions/${transactionId}/explain/stream`, { conversation_id: conversationId }, token, callbacks);
 }
 
+export function streamTrackRedemptionOrder(
+  token: string,
+  orderRef: string,
+  conversationId: string | null,
+  callbacks: StreamCallbacks
+): Promise<void> {
+  return streamPost(`/redemptions/${orderRef}/track/stream`, { conversation_id: conversationId }, token, callbacks);
+}
+
 export function listFaqArticles(): Promise<FaqArticle[]> {
   return request<FaqArticle[]>("/faq");
 }
@@ -152,6 +162,12 @@ export function adminListUsers(token: string): Promise<AdminUser[]> {
 
 export function adminListTransactions(token: string): Promise<AdminTransaction[]> {
   return request<AdminTransaction[]>("/admin/transactions", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function adminListRedemptionOrders(token: string): Promise<AdminRedemptionOrder[]> {
+  return request<AdminRedemptionOrder[]>("/admin/redemptions", {
     headers: { Authorization: `Bearer ${token}` },
   });
 }

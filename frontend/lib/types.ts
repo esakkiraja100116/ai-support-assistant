@@ -3,6 +3,8 @@ export type ChatResponseType =
   | "TRANSACTION_SELECTION"
   | "TRANSACTION_EXPLANATION"
   | "TRANSACTION_SUMMARY"
+  | "REDEMPTION_SELECTION"
+  | "REDEMPTION_TRACKING"
   | "ESCALATE"
   | "ERROR";
 
@@ -38,6 +40,42 @@ export interface TransactionsSummaryData {
   transactions: TransactionDetail[];
 }
 
+export interface RedemptionOrderSummary {
+  order_ref: string;
+  product_name: string;
+  product_type: string;
+  metal_type: string;
+  quantity: number;
+  status: string;
+  created_at: string;
+}
+
+export interface TrackingEvent {
+  type: string;
+  remarks: string;
+  area: string;
+  event_time: string;
+}
+
+export interface RedemptionTracking {
+  order_ref: string;
+  product_name: string;
+  status: string;
+  awb_available: boolean;
+  current_location: string | null;
+  latest_event: TrackingEvent | null;
+  history: TrackingEvent[];
+  stale: boolean;
+}
+
+export interface RedemptionSelectionData {
+  orders: RedemptionOrderSummary[];
+}
+
+export interface RedemptionTrackingData {
+  tracking: RedemptionTracking;
+}
+
 export interface EscalateData {
   contact_email: string;
 }
@@ -55,6 +93,8 @@ export interface ChatResponse {
     | TransactionSelectionData
     | TransactionExplanationData
     | TransactionsSummaryData
+    | RedemptionSelectionData
+    | RedemptionTrackingData
     | EscalateData
     | ErrorData
     | null;
@@ -120,10 +160,17 @@ export interface AdminUser {
   display_name: string;
   role: UserRole;
   transaction_count: number;
+  redemption_order_count: number;
   conversation_count: number;
 }
 
 export interface AdminTransaction extends TransactionDetail {
+  user_id: string;
+  username: string;
+  display_name: string;
+}
+
+export interface AdminRedemptionOrder extends RedemptionOrderSummary {
   user_id: string;
   username: string;
   display_name: string;
@@ -166,7 +213,8 @@ export type MessageStatus = "pending" | "sent" | "error";
 
 export type RetryAction =
   | { kind: "chat"; message: string }
-  | { kind: "explain"; transactionId: string };
+  | { kind: "explain"; transactionId: string }
+  | { kind: "track"; orderRef: string };
 
 export interface ChatUIMessage {
   id: string;

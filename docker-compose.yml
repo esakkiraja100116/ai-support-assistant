@@ -16,5 +16,20 @@ services:
       timeout: 5s
       retries: 10
 
+  # Pure cache for redemption-order tracking (ongoing-order lists, tracking
+  # lookups, request-coalescing locks) - deliberately no volume, since losing
+  # it on restart is fine (everything is TTL'd and rebuilt from Postgres/the
+  # tracking API on the next request) and arguably desirable for a demo.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   db_data:

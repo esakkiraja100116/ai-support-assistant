@@ -1,20 +1,27 @@
-"""Idempotent seed script: truncates and re-inserts users, transactions, and
-support articles (embedding each article via the OpenAI embeddings API).
+"""Idempotent seed script: resets synthetic demo data (transactions,
+redemption orders, support articles) and upserts the fixed demo users, but
+deliberately never touches `conversations`/`messages` - that's real usage
+history (actual chat turns, whether from manual testing or real traffic),
+not demo data, and re-running this script should never destroy it.
+
+Users are upserted by username (found-or-created, existing id preserved)
+rather than dropped and recreated, specifically so `conversations.user_id`
+foreign keys never dangle and existing conversation history stays valid
+across repeated runs.
 
 Run from the `backend/` directory with the venv active and OPENAI_API_KEY set:
     python -m scripts.seed
 """
 import sys
-import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import select, text  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
-from app.models import SupportArticle, Transaction, User  # noqa: E402
+from app.models import RedemptionOrder, SupportArticle, Transaction, User  # noqa: E402
 from app.services import llm_client  # noqa: E402
 
 USERS = [
@@ -54,27 +61,46 @@ TXN_TEMPLATES = [
     {"type": "RECURRING_BUY", "product": "GOLD22", "amount": 1000, "status": "FAILED", "failure_reason": "Insufficient funds in linked account", "payment_method": "Net Banking"},
 ]
 
+# Seeded for alice only, cross-referenced to the AWBs in
+# app/services/tracking_fixtures.py so the demo chat flow ("where is my
+# order") has real ongoing orders to resolve/track against - 4 ongoing
+# (one per fixture AWB, plus one with no AWB yet) + 1 already-delivered
+# (excluded from active discovery, per the spec's own note - reachable only
+# via a direct tracking_service call, not through chat).
+REDEMPTION_TEMPLATES = [
+    {"txn_id": "j54Po7qTYi", "product_name": "Aura Gold Bar", "product_type": "bar", "metal_type": "gold",
+     "quantity_purchased": 5.0, "txn_status": "DELIVERED", "awb_number": "PRO19460771"},
+    {"txn_id": "rTx2n8LmQe", "product_name": "Aura Gold Coin", "product_type": "coin", "metal_type": "gold",
+     "quantity_purchased": 2.0, "txn_status": "IN_TRANSIT", "awb_number": "PRO19460772"},
+    {"txn_id": "kP9wZ3vBdA", "product_name": "Aura Gold Bar", "product_type": "bar", "metal_type": "gold",
+     "quantity_purchased": 1.0, "txn_status": "OUT_FOR_DELIVERY", "awb_number": "PRO19460773"},
+    {"txn_id": "mN4qX7cRfG", "product_name": "Aura Gold Coin", "product_type": "coin", "metal_type": "gold",
+     "quantity_purchased": 3.0, "txn_status": "ATTEMPTED", "awb_number": "PRO19460774"},
+    {"txn_id": "hJ6sY1oPtL", "product_name": "Aura Gold Bar", "product_type": "bar", "metal_type": "gold",
+     "quantity_purchased": 10.0, "txn_status": "PROCESSING", "awb_number": None},
+]
+
 
 def seed() -> None:
     db = SessionLocal()
     try:
-        db.execute(
-            text(
-                "TRUNCATE TABLE messages, conversations, transactions, users, support_articles "
-                "RESTART IDENTITY CASCADE"
-            )
-        )
+        # Only synthetic demo data is reset here - never messages/conversations
+        # (real usage history) or users (would orphan/cascade-delete that
+        # history via the conversations.user_id foreign key). Neither
+        # transactions nor redemption_orders is referenced by any other
+        # table, so truncating them can't cascade into anything else.
+        db.execute(text("TRUNCATE TABLE redemption_orders, transactions, support_articles RESTART IDENTITY CASCADE"))
         db.commit()
 
         users = {}
         for spec in USERS:
-            user = User(
-                id=uuid.uuid4(),
-                username=spec["username"],
-                display_name=spec["display_name"],
-                role=spec["role"],
-            )
-            db.add(user)
+            user = db.scalars(select(User).where(User.username == spec["username"])).first()
+            if user is None:
+                user = User(username=spec["username"], display_name=spec["display_name"], role=spec["role"])
+                db.add(user)
+            else:
+                user.display_name = spec["display_name"]
+                user.role = spec["role"]
             users[spec["username"]] = user
         db.flush()
 
@@ -101,6 +127,25 @@ def seed() -> None:
                 )
                 txn_seq += 1
 
+        alice = users.get("alice")
+        if alice is not None:
+            for tpl in REDEMPTION_TEMPLATES:
+                created = now - timedelta(days=2)
+                db.add(
+                    RedemptionOrder(
+                        txn_id=tpl["txn_id"],
+                        user_id=alice.id,
+                        product_name=tpl["product_name"],
+                        product_type=tpl["product_type"],
+                        metal_type=tpl["metal_type"],
+                        quantity_purchased=tpl["quantity_purchased"],
+                        txn_status=tpl["txn_status"],
+                        awb_number=tpl["awb_number"],
+                        created_at=created,
+                        updated_at=created,
+                    )
+                )
+
         # Committed before embedding starts: users/transactions require no
         # external API and should land even if OPENAI_API_KEY is missing or
         # invalid, rather than being rolled back by a later embedding failure.
@@ -116,7 +161,11 @@ def seed() -> None:
 
         db.commit()
         txn_count = sum(1 for u in users.values() if u.role != "ADMINISTRATOR") * len(TXN_TEMPLATES)
-        print(f"Seeded {len(users)} users, {txn_count} transactions, {len(FAQS)} support articles.")
+        redemption_count = len(REDEMPTION_TEMPLATES) if alice is not None else 0
+        print(
+            f"Seeded {len(users)} users, {txn_count} transactions, "
+            f"{redemption_count} redemption orders, {len(FAQS)} support articles."
+        )
     finally:
         db.close()
 

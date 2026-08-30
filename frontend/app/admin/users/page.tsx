@@ -33,6 +33,7 @@ export default function AdminUsersPage() {
                 <th>Display name</th>
                 <th>Role</th>
                 <th>Transactions</th>
+                <th>Redemptions</th>
                 <th>Conversations</th>
               </tr>
             </thead>
@@ -43,6 +44,7 @@ export default function AdminUsersPage() {
                   <td>{u.display_name}</td>
                   <td>{u.role}</td>
                   <td>{u.transaction_count}</td>
+                  <td>{u.redemption_order_count}</td>
                   <td>{u.conversation_count}</td>
                 </tr>
               ))}

@@ -6,10 +6,11 @@ import { MessageBubble } from "./MessageBubble";
 interface Props {
   messages: ChatUIMessage[];
   onSelectTransaction: (id: string) => void;
+  onSelectRedemptionOrder: (orderRef: string) => void;
   onRetry: (id: string) => void;
 }
 
-export function MessageList({ messages, onSelectTransaction, onRetry }: Props) {
+export function MessageList({ messages, onSelectTransaction, onSelectRedemptionOrder, onRetry }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export function MessageList({ messages, onSelectTransaction, onRetry }: Props) {
           key={message.id}
           message={message}
           onSelectTransaction={onSelectTransaction}
+          onSelectRedemptionOrder={onSelectRedemptionOrder}
           onRetry={onRetry}
         />
       ))}

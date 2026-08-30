@@ -36,7 +36,12 @@ export default function AdminConversationDetailPage() {
         {conversation.total_cost_usd.toFixed(4)}
       </p>
       <div className="read-only-transcript">
-        <MessageList messages={messages} onSelectTransaction={() => {}} onRetry={() => {}} />
+        <MessageList
+          messages={messages}
+          onSelectTransaction={() => {}}
+          onSelectRedemptionOrder={() => {}}
+          onRetry={() => {}}
+        />
       </div>
     </div>
   );
