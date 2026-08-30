@@ -31,6 +31,51 @@ class Role(str, enum.Enum):
     USER = "USER"
 
 
+class RedemptionStatus(str, enum.Enum):
+    PROCESSING = "PROCESSING"
+    ORDER_CONFIRMED = "ORDER_CONFIRMED"
+    PACKED = "PACKED"
+    SHIPPED = "SHIPPED"
+    IN_TRANSIT = "IN_TRANSIT"
+    OUT_FOR_DELIVERY = "OUT_FOR_DELIVERY"
+    ATTEMPTED = "ATTEMPTED"
+    DELIVERED = "DELIVERED"
+    SUCCESS = "SUCCESS"
+    ORDER_SUCCESSFULL = "ORDER_SUCCESSFULL"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
+    REFUNDED = "REFUNDED"
+
+
+# Ongoing/trackable statuses only - completed (DELIVERED/SUCCESS/ORDER_SUCCESSFULL) and
+# terminal-failure (FAILED/CANCELLED/REJECTED/REFUNDED) statuses are excluded by
+# construction (simply not listed here), not by a separate exclusion check - so a
+# status this app doesn't yet recognize can never accidentally end up "trackable".
+TRACKABLE_REDEMPTION_STATUSES: frozenset[RedemptionStatus] = frozenset(
+    {
+        RedemptionStatus.PROCESSING,
+        RedemptionStatus.ORDER_CONFIRMED,
+        RedemptionStatus.PACKED,
+        RedemptionStatus.SHIPPED,
+        RedemptionStatus.IN_TRANSIT,
+        RedemptionStatus.OUT_FOR_DELIVERY,
+        RedemptionStatus.ATTEMPTED,
+    }
+)
+
+
+def is_trackable_redemption(status: str) -> bool:
+    """Fail closed: a genuinely unrecognized status (not just an excluded known
+    one) returns False, never True - centralizing this as one function rather
+    than an inline string comparison is a spec requirement, since status
+    vocabularies commonly drift between systems."""
+    try:
+        return RedemptionStatus(status) in TRACKABLE_REDEMPTION_STATUSES
+    except ValueError:
+        return False
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -42,6 +87,7 @@ class User(Base):
 
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="user")
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user")
+    redemption_orders: Mapped[list["RedemptionOrder"]] = relationship(back_populates="user")
 
 
 class Transaction(Base):
@@ -59,6 +105,24 @@ class Transaction(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     user: Mapped["User"] = relationship(back_populates="transactions")
+
+
+class RedemptionOrder(Base):
+    __tablename__ = "redemption_orders"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    txn_id: Mapped[str] = mapped_column(String(32), unique=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    product_name: Mapped[str] = mapped_column(String(128))
+    product_type: Mapped[str] = mapped_column(String(32))
+    metal_type: Mapped[str] = mapped_column(String(32))
+    quantity_purchased: Mapped[float] = mapped_column(Numeric(12, 4))
+    txn_status: Mapped[RedemptionStatus] = mapped_column(String(32))
+    awb_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="redemption_orders")
 
 
 class SupportArticle(Base):

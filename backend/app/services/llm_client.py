@@ -10,6 +10,7 @@ rather than each call site needing to remember to do it.
 """
 from typing import Any, Iterator
 
+from opentelemetry import trace
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 
@@ -49,6 +50,33 @@ def _record_call(
     else:
         turn_metrics.record(model, prompt_tokens, completion_tokens, cost)
 
+    tool_call_names: list[str] = []
+    message_content: str | None = None
+    if message is not None:
+        tool_calls = getattr(message, "tool_calls", None)
+        if tool_calls:
+            tool_call_names = [c.function.name for c in tool_calls]
+        if message.content:
+            message_content = message.content
+
+    # Enriches whatever span orchestrator.py currently has active (via
+    # tracer.start_as_current_span at each meaningful step) with this call's
+    # data - reads trace.get_current_span() rather than taking a new
+    # parameter, so this never touches chat_completion()/stream_chat_completion()'s
+    # signature (test doubles for those have fixed signatures with no
+    # **kwargs - see the `metrics` param's own docstring note above for the
+    # same reasoning). A no-op when no real TracerProvider is configured.
+    span = trace.get_current_span()
+    span.set_attribute("llm.call_kind", kind)
+    span.set_attribute("llm.model", model)
+    span.set_attribute("llm.prompt_tokens", prompt_tokens)
+    span.set_attribute("llm.completion_tokens", completion_tokens)
+    span.set_attribute("llm.cost_usd", round(cost, 6))
+    if tool_call_names:
+        span.set_attribute("llm.tool_calls", tool_call_names)
+    if message_content:
+        span.set_attribute("llm.content", message_content[:2000])
+
     session = session_log.get_current_session()
     if session is None:
         return
@@ -64,13 +92,12 @@ def _record_call(
         "session_total_cost_usd": round(total, 6),
     }
     if message is not None:
-        tool_calls = getattr(message, "tool_calls", None)
-        if tool_calls:
+        if tool_call_names:
             event["tool_calls"] = [
-                {"name": c.function.name, "arguments": c.function.arguments} for c in tool_calls
+                {"name": c.function.name, "arguments": c.function.arguments} for c in message.tool_calls
             ]
-        if message.content:
-            event["content"] = message.content
+        if message_content:
+            event["content"] = message_content
     session.log("llm_call", **event)
 
 

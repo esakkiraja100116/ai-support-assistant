@@ -3,6 +3,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from app.schemas.redemptions import RedemptionOrderOut, RedemptionTrackingOut
 from app.schemas.transactions import TransactionDetailOut, TransactionOut
 
 
@@ -11,6 +12,8 @@ class ChatResponseType(str, Enum):
     TRANSACTION_SELECTION = "TRANSACTION_SELECTION"
     TRANSACTION_EXPLANATION = "TRANSACTION_EXPLANATION"
     TRANSACTION_SUMMARY = "TRANSACTION_SUMMARY"
+    REDEMPTION_SELECTION = "REDEMPTION_SELECTION"
+    REDEMPTION_TRACKING = "REDEMPTION_TRACKING"
     ESCALATE = "ESCALATE"
     ERROR = "ERROR"
 
@@ -41,6 +44,14 @@ class TransactionExplanationData(BaseModel):
 
 class TransactionSummaryData(BaseModel):
     transactions: list[TransactionDetailOut]
+
+
+class RedemptionSelectionData(BaseModel):
+    orders: list[RedemptionOrderOut]
+
+
+class RedemptionTrackingData(BaseModel):
+    tracking: RedemptionTrackingOut
 
 
 class EscalateData(BaseModel):
@@ -87,6 +98,22 @@ class ChatResponse(BaseModel):
             type=ChatResponseType.TRANSACTION_SUMMARY,
             message=message,
             data=TransactionSummaryData(transactions=transactions).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def redemption_selection(cls, message: str, orders: list[RedemptionOrderOut]) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.REDEMPTION_SELECTION,
+            message=message,
+            data=RedemptionSelectionData(orders=orders).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def redemption_tracking(cls, message: str, tracking: RedemptionTrackingOut) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.REDEMPTION_TRACKING,
+            message=message,
+            data=RedemptionTrackingData(tracking=tracking).model_dump(mode="json"),
         )
 
     @classmethod

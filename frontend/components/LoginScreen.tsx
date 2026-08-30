@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { listUsers } from "@/lib/api";
 import { SeededUser } from "@/lib/types";
+import { ErrorBanner } from "./ErrorBanner";
 
 interface Props {
   onLogin: (username: string) => Promise<void>;
@@ -35,40 +38,39 @@ export function LoginScreen({ onLogin }: Props) {
   }
 
   return (
-    <div className="login-screen">
-      <div className="login-card">
-        <h1>Support Assistant</h1>
-        <p className="subtitle">Choose an account to continue</p>
+    <div className="flex min-h-screen items-center justify-center bg-muted/30 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader>
+          <CardTitle className="text-xl">Support Assistant</CardTitle>
+          <CardDescription>Choose an account to continue</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {loadingUsers && <p className="text-sm text-muted-foreground">Loading accounts...</p>}
+          {error && <ErrorBanner message={error} onRetry={() => window.location.reload()} />}
 
-        {loadingUsers && <p className="muted">Loading accounts...</p>}
-        {error && (
-          <div className="error-banner">
-            <span>{error}</span>
-            <button onClick={() => window.location.reload()}>Retry</button>
+          <div className="flex flex-col gap-2.5">
+            {users.map((user) => (
+              <Button
+                key={user.username}
+                variant="outline"
+                className="justify-start"
+                disabled={loggingInAs !== null}
+                onClick={() => handleLogin(user.username)}
+              >
+                {loggingInAs === user.username ? "Logging in..." : `Log in as ${user.display_name}`}
+              </Button>
+            ))}
           </div>
-        )}
 
-        <div className="user-list">
-          {users.map((user) => (
-            <button
-              key={user.username}
-              className="user-button"
-              disabled={loggingInAs !== null}
-              onClick={() => handleLogin(user.username)}
-            >
-              {loggingInAs === user.username ? "Logging in..." : `Log in as ${user.display_name}`}
-            </button>
-          ))}
-        </div>
+          {!loadingUsers && users.length === 0 && !error && (
+            <p className="text-sm text-muted-foreground">No seeded accounts found. Run the backend seed script.</p>
+          )}
 
-        {!loadingUsers && users.length === 0 && !error && (
-          <p className="muted">No seeded accounts found. Run the backend seed script.</p>
-        )}
-
-        <Link href="/faq" className="faq-link">
-          Browse the knowledge base
-        </Link>
-      </div>
+          <Link href="/faq" className="text-center text-xs text-primary hover:underline">
+            Browse the knowledge base
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,0 +1,7 @@
+{% include "base_prompt.j2" %}
+
+The customer asked: "{{ original_question }}"
+
+Using ONLY the following JSON tracking record, answer their actual question about their order's delivery status. Include the current status, the most recent location and timestamp if available, and a brief mention of recent history if it's useful context. Never invent a location, timestamp, delivery-day promise, or reattempt timing that is not present in the JSON - if there's no history yet, say tracking information isn't available yet rather than guessing.
+
+{{ tracking_json }}

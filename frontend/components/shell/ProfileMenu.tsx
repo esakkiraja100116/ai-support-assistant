@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AuthSession } from "@/lib/types";
 
 interface Props {
@@ -13,24 +16,44 @@ export function ProfileMenu({ session, onLogout }: Props) {
   const initial = session.displayName.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <div className="profile-menu">
-      <button className="profile-menu-avatar" onClick={() => setOpen((v) => !v)} aria-label="Account menu">
-        {initial}
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        aria-label="Account menu"
+        className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+        <Avatar>
+          <AvatarFallback className="bg-primary text-primary-foreground font-semibold">{initial}</AvatarFallback>
+        </Avatar>
       </button>
-      {open && (
-        <>
-          <div className="profile-menu-backdrop" onClick={() => setOpen(false)} />
-          <div className="profile-menu-dropdown">
-            <div className="profile-menu-name">{session.displayName}</div>
-            <div className="profile-menu-role">
-              {session.role === "ADMINISTRATOR" ? "Administrator" : "Customer"}
-            </div>
-            <button className="text-button" onClick={onLogout}>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader className="items-center text-center">
+            <Avatar className="mb-2 size-16">
+              <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-semibold">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
+            <DialogTitle className="text-lg">{session.displayName}</DialogTitle>
+            <DialogDescription>
+              @{session.username} - {session.role === "ADMINISTRATOR" ? "Administrator" : "Customer"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                setOpen(false);
+                onLogout();
+              }}
+            >
               Log out
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

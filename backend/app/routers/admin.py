@@ -7,10 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_admin
 from app.db import get_db
-from app.models import Conversation, Message, SupportArticle, Transaction, User
+from app.models import Conversation, Message, RedemptionOrder, SupportArticle, Transaction, User
 from app.schemas.admin import (
     AdminCostSummary,
     AdminFaqArticleOut,
+    AdminRedemptionOrderOut,
     AdminTransactionOut,
     AdminUserOut,
     CostByCategory,
@@ -28,6 +29,9 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_cu
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(db: Session = Depends(get_db)) -> list[AdminUserOut]:
     txn_counts = dict(db.execute(select(Transaction.user_id, func.count()).group_by(Transaction.user_id)).all())
+    redemption_counts = dict(
+        db.execute(select(RedemptionOrder.user_id, func.count()).group_by(RedemptionOrder.user_id)).all()
+    )
     convo_counts = dict(db.execute(select(Conversation.user_id, func.count()).group_by(Conversation.user_id)).all())
     users = list(db.scalars(select(User).order_by(User.username)))
     return [
@@ -37,6 +41,7 @@ def list_users(db: Session = Depends(get_db)) -> list[AdminUserOut]:
             display_name=u.display_name,
             role=u.role,
             transaction_count=txn_counts.get(u.id, 0),
+            redemption_order_count=redemption_counts.get(u.id, 0),
             conversation_count=convo_counts.get(u.id, 0),
         )
         for u in users
@@ -70,6 +75,34 @@ def list_transactions(db: Session = Depends(get_db)) -> list[AdminTransactionOut
             display_name=u.display_name,
         )
         for t, u in rows
+    ]
+
+
+@router.get("/redemptions", response_model=list[AdminRedemptionOrderOut])
+def list_redemption_orders(db: Session = Depends(get_db)) -> list[AdminRedemptionOrderOut]:
+    # Same intentionally-unscoped-by-ownership pattern as list_transactions -
+    # guarded by get_current_admin instead, shows every user's orders, not
+    # just the calling admin's own.
+    stmt = (
+        select(RedemptionOrder, User)
+        .join(User, RedemptionOrder.user_id == User.id)
+        .order_by(RedemptionOrder.created_at.desc())
+    )
+    rows = db.execute(stmt).all()
+    return [
+        AdminRedemptionOrderOut(
+            order_ref=str(o.id),
+            product_name=o.product_name,
+            product_type=o.product_type,
+            metal_type=o.metal_type,
+            quantity=float(o.quantity_purchased),
+            status=o.txn_status,
+            created_at=o.created_at,
+            user_id=u.id,
+            username=u.username,
+            display_name=u.display_name,
+        )
+        for o, u in rows
     ]
 
 
@@ -146,6 +179,8 @@ _CATEGORY_BUCKETS = {
     ChatResponseType.TRANSACTION_SELECTION.value: "transaction",
     ChatResponseType.TRANSACTION_EXPLANATION.value: "transaction",
     ChatResponseType.TRANSACTION_SUMMARY.value: "transaction",
+    ChatResponseType.REDEMPTION_SELECTION.value: "redemption",
+    ChatResponseType.REDEMPTION_TRACKING.value: "redemption",
     ChatResponseType.TEXT_ANSWER.value: "general",
     ChatResponseType.ESCALATE.value: "escalation",
     ChatResponseType.ERROR.value: "error",

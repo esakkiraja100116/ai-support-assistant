@@ -1,9 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
 import { adminListUsers } from "@/lib/api";
 import { AdminUser } from "@/lib/types";
+
+const columns: ColumnDef<AdminUser>[] = [
+  { accessorKey: "username", header: "Username" },
+  { accessorKey: "display_name", header: "Display name" },
+  {
+    accessorKey: "role",
+    header: "Role",
+    cell: ({ row }) => (
+      <Badge variant={row.original.role === "ADMINISTRATOR" ? "default" : "outline"}>
+        {row.original.role}
+      </Badge>
+    ),
+  },
+  { accessorKey: "transaction_count", header: "Transactions" },
+  { accessorKey: "redemption_order_count", header: "Redemptions" },
+  { accessorKey: "conversation_count", header: "Conversations" },
+];
 
 export default function AdminUsersPage() {
   const { session } = useAuth();
@@ -19,36 +39,15 @@ export default function AdminUsersPage() {
       .finally(() => setLoading(false));
   }, [session]);
 
+  const data = useMemo(() => users, [users]);
+
   return (
-    <div className="admin-page">
-      <h1>Users</h1>
-      {loading && <p className="muted">Loading...</p>}
-      {error && <p className="muted">{error}</p>}
+    <div className="flex h-full flex-col px-5 pt-6 pb-6">
+      <h1 className="mb-5 shrink-0 text-2xl font-semibold tracking-tight">Users</h1>
+      {loading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {error && <p className="text-sm text-muted-foreground">{error}</p>}
       {!loading && !error && (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Display name</th>
-                <th>Role</th>
-                <th>Transactions</th>
-                <th>Conversations</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id}>
-                  <td>{u.username}</td>
-                  <td>{u.display_name}</td>
-                  <td>{u.role}</td>
-                  <td>{u.transaction_count}</td>
-                  <td>{u.conversation_count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable columns={columns} data={data} searchPlaceholder="Search users..." emptyMessage="No users found." />
       )}
     </div>
   );

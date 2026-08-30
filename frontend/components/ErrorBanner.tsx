@@ -1,3 +1,6 @@
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+
 interface Props {
   message: string;
   onRetry: () => void;
@@ -5,9 +8,11 @@ interface Props {
 
 export function ErrorBanner({ message, onRetry }: Props) {
   return (
-    <div className="error-banner">
+    <Alert variant="destructive" className="flex flex-row items-center justify-between gap-3">
       <span>{message}</span>
-      <button onClick={onRetry}>Retry</button>
-    </div>
+      <Button variant="outline" size="sm" className="border-destructive/40 text-destructive" onClick={onRetry}>
+        Retry
+      </Button>
+    </Alert>
   );
 }

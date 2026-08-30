@@ -7,6 +7,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault(
     "DATABASE_URL", "postgresql+psycopg://support:support@localhost:5433/support_assistant_test"
 )
+# Separate Redis DB index from the dev default (0), same idea as the test
+# Postgres database being separate from the dev one - tests get a clean,
+# isolated cache namespace rather than colliding with whatever's cached from
+# manual local testing.
+os.environ.setdefault("REDIS_URL", "redis://localhost:6380/1")
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -114,6 +119,46 @@ def make_transaction(db_session):
         return txn
 
     return _make
+
+
+@pytest.fixture()
+def make_redemption_order(db_session):
+    def _make(
+        user: models.User,
+        txn_id: str,
+        status: str = "IN_TRANSIT",
+        product_name: str = "Aura Gold Coin",
+        product_type: str = "coin",
+        metal_type: str = "gold",
+        quantity_purchased: float = 2.0,
+        awb_number: str | None = "PRO19460772",
+    ) -> models.RedemptionOrder:
+        order = models.RedemptionOrder(
+            txn_id=txn_id,
+            user_id=user.id,
+            product_name=product_name,
+            product_type=product_type,
+            metal_type=metal_type,
+            quantity_purchased=quantity_purchased,
+            txn_status=status,
+            awb_number=awb_number,
+        )
+        db_session.add(order)
+        db_session.commit()
+        db_session.refresh(order)
+        return order
+
+    return _make
+
+
+@pytest.fixture()
+def flush_redis():
+    from app.services.cache import get_redis
+
+    client = get_redis()
+    client.flushdb()
+    yield client
+    client.flushdb()
 
 
 @pytest.fixture()

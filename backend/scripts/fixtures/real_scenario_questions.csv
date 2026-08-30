@@ -59,3 +59,13 @@ id,category,question,expected_type,expected_contains,notes
 58,out_of_scope,What's the weather like today?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform
 59,out_of_scope,Can you recommend a good stock to invest in?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform
 60,out_of_scope,What's the capital of France?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform
+61,redemption,Where is my order?,REDEMPTION_SELECTION,track,ambiguous - 4 ongoing redemption orders match
+62,redemption,Track my gold coin,REDEMPTION_SELECTION,track,ambiguous - 2 ongoing coin orders match (IN_TRANSIT and ATTEMPTED)
+63,redemption,Has my gold bar shipped yet?,REDEMPTION_SELECTION,track,ambiguous - 2 ongoing bar orders match (OUT_FOR_DELIVERY and PROCESSING)
+64,redemption,Track my Aura Gold Bar that's currently out for delivery,REDEMPTION_TRACKING,out_for_delivery,single match via status mentioned in the question itself
+65,redemption,Track my gold coin that was already attempted for delivery,REDEMPTION_TRACKING,attempted,single match via status mentioned in the question itself
+66,redemption,Is my Aura Gold Bar still being processed?,REDEMPTION_TRACKING,processing,single match - only one bar has no AWB yet (still processing)
+67,redemption,What is the tracking status for my in-transit gold coin?,REDEMPTION_TRACKING,in_transit,single match via status; also tests the tool never asks the customer to type an AWB themselves
+68,out_of_scope,Can I cancel my redemption order?,TEXT_ANSWER_GROUNDED,alice,no cancel capability exists - tests correct decline vs wrongly invoking the tracking tool
+69,out_of_scope,Can I get a refund for my delivered gold order?,TEXT_ANSWER_GROUNDED,alice,no refund capability via chat; also the referenced order is DELIVERED (excluded from ongoing)
+70,out_of_scope,Can you track my Amazon package from last week?,TEXT_ANSWER_GROUNDED,alice,"unrelated to the platform, despite superficially sounding like a tracking request"

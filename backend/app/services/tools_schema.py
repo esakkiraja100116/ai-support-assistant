@@ -1,9 +1,9 @@
 """OpenAI tool/function schemas exposed to the chat model.
 
-Deliberately, `get_recent_transactions` takes no user-identifying parameter.
-The authenticated user is always bound server-side from the JWT, so the
-model can never supply, guess, or be prompt-injected into supplying a
-user id for this tool.
+Deliberately, `get_recent_transactions` and `get_ongoing_redemptions` take no
+user-identifying parameter. The authenticated user is always bound
+server-side from the JWT, so the model can never supply, guess, or be
+prompt-injected into supplying a user id for either tool.
 """
 
 SEARCH_KNOWLEDGE_BASE = {
@@ -31,7 +31,9 @@ RESPOND_DIRECTLY = {
             "pricing/timing - those must go through search_knowledge_base instead. Do NOT call "
             "this for any question about the customer's own transactions or orders, including "
             "counts/aggregates over them (e.g. 'how many succeeded') - those must go through "
-            "get_recent_transactions instead."
+            "get_recent_transactions instead. Do NOT call this for a question about shipment/"
+            "delivery tracking of a physical redemption order (e.g. 'where is my order', 'track "
+            "my gold coin') - those must go through get_ongoing_redemptions instead."
         ),
         "parameters": {
             "type": "object",
@@ -94,6 +96,57 @@ GET_RECENT_TRANSACTIONS = {
             "recent transactions', 'why did my purchase fail', 'what happened to my last order'. "
             "Do NOT use this for questions about current total holdings, portfolio value, or "
             "account balance - this tool has no such data, it only returns a transaction history list."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+GET_ONGOING_REDEMPTIONS = {
+    "type": "function",
+    "function": {
+        "name": "get_ongoing_redemptions",
+        "description": (
+            "Fetch the authenticated customer's own ongoing (not yet delivered, not "
+            "failed/cancelled) physical gold redemption/delivery orders - coins or bars being "
+            "shipped to them. Use this for shipment/delivery tracking questions like 'where is "
+            "my order', 'track my gold coin', 'has my bar shipped yet', 'what is my AWB status'. "
+            "This is separate from get_recent_transactions, which covers BUY/SELL/RECURRING_BUY "
+            "activity, not physical delivery/shipment status."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+    },
+}
+
+RESOLVE_REDEMPTION_ORDER = {
+    "type": "function",
+    "function": {
+        "name": "resolve_redemption_order",
+        "description": (
+            "Call this once you can tell, from the customer's message, which single ongoing "
+            "redemption order they mean, from the list you were given. Only call this when "
+            "confident - do not guess."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_ref": {
+                    "type": "string",
+                    "description": "order_ref of the matching order, from the provided list.",
+                },
+            },
+            "required": ["order_ref"],
+        },
+    },
+}
+
+NO_SINGLE_REDEMPTION_MATCH = {
+    "type": "function",
+    "function": {
+        "name": "no_single_redemption_match",
+        "description": (
+            "Call this when you do NOT have enough information to identify exactly one order "
+            "from the list you were given. Never describe, list, or summarize the orders "
+            "yourself - the app renders them separately."
         ),
         "parameters": {"type": "object", "properties": {}},
     },
@@ -208,7 +261,13 @@ INSUFFICIENT_KB_INFO = {
     },
 }
 
-ALL_TOOLS = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS, REQUEST_HUMAN_AGENT, RESPOND_DIRECTLY]
+ALL_TOOLS = [
+    SEARCH_KNOWLEDGE_BASE,
+    GET_RECENT_TRANSACTIONS,
+    GET_ONGOING_REDEMPTIONS,
+    REQUEST_HUMAN_AGENT,
+    RESPOND_DIRECTLY,
+]
 
 # --- Streaming variants -----------------------------------------------------
 # Used only by the streaming orchestrator path (orchestrator.chat_turn_stream).
@@ -248,7 +307,13 @@ ANSWER_FROM_KB_JUDGE = {
     },
 }
 
-ALL_TOOLS_STREAM = [SEARCH_KNOWLEDGE_BASE, GET_RECENT_TRANSACTIONS, REQUEST_HUMAN_AGENT, RESPOND_DIRECTLY_ROUTE]
+ALL_TOOLS_STREAM = [
+    SEARCH_KNOWLEDGE_BASE,
+    GET_RECENT_TRANSACTIONS,
+    GET_ONGOING_REDEMPTIONS,
+    REQUEST_HUMAN_AGENT,
+    RESPOND_DIRECTLY_ROUTE,
+]
 
 # The system prompt (and every other prompt this app sends) lives in
 # app/prompts/*.j2, rendered via app/services/prompts.py - see that module's

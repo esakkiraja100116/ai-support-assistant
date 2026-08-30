@@ -12,12 +12,21 @@ interface Props {
 }
 
 export function ChatWindow({ session, conversationId, onTurnComplete }: Props) {
-  const { messages, sendMessage, selectTransaction, retry } = useChat(session, conversationId, onTurnComplete);
+  const { messages, sendMessage, selectTransaction, selectRedemptionOrder, retry } = useChat(
+    session,
+    conversationId,
+    onTurnComplete
+  );
   const isBusy = messages.some((m) => m.status === "pending");
 
   return (
-    <div className="chat-window">
-      <MessageList messages={messages} onSelectTransaction={selectTransaction} onRetry={retry} />
+    <div className="flex h-full flex-col bg-background">
+      <MessageList
+        messages={messages}
+        onSelectTransaction={selectTransaction}
+        onSelectRedemptionOrder={selectRedemptionOrder}
+        onRetry={retry}
+      />
       <ChatInput onSend={sendMessage} disabled={isBusy} />
     </div>
   );

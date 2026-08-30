@@ -1,9 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/ui/data-table";
 import { useAuth } from "@/hooks/useAuth";
 import { adminListTransactions } from "@/lib/api";
+import { statusBadgeClass } from "@/lib/statusStyles";
 import { AdminTransaction } from "@/lib/types";
+
+const columns: ColumnDef<AdminTransaction>[] = [
+  { accessorKey: "id", header: "ID" },
+  { accessorKey: "display_name", header: "User" },
+  { accessorKey: "type", header: "Type" },
+  { accessorKey: "product", header: "Product" },
+  { accessorKey: "amount", header: "Amount" },
+  {
+    accessorKey: "status",
+    header: "Status",
+    cell: ({ row }) => (
+      <Badge className={statusBadgeClass(row.original.status)}>{row.original.status}</Badge>
+    ),
+  },
+  { accessorKey: "payment_method", header: "Payment method" },
+  {
+    accessorKey: "created_at",
+    header: "Created",
+    cell: ({ row }) => new Date(row.original.created_at).toLocaleString(),
+  },
+];
 
 export default function AdminTransactionsPage() {
   const { session } = useAuth();
@@ -19,42 +44,20 @@ export default function AdminTransactionsPage() {
       .finally(() => setLoading(false));
   }, [session]);
 
+  const data = useMemo(() => transactions, [transactions]);
+
   return (
-    <div className="admin-page">
-      <h1>Transactions</h1>
-      {loading && <p className="muted">Loading...</p>}
-      {error && <p className="muted">{error}</p>}
+    <div className="flex h-full flex-col px-5 pt-6 pb-6">
+      <h1 className="mb-5 shrink-0 text-2xl font-semibold tracking-tight">Transactions</h1>
+      {loading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {error && <p className="text-sm text-muted-foreground">{error}</p>}
       {!loading && !error && (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>User</th>
-                <th>Type</th>
-                <th>Product</th>
-                <th>Amount</th>
-                <th>Status</th>
-                <th>Payment method</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.id}</td>
-                  <td>{t.display_name}</td>
-                  <td>{t.type}</td>
-                  <td>{t.product}</td>
-                  <td>{t.amount}</td>
-                  <td>{t.status}</td>
-                  <td>{t.payment_method}</td>
-                  <td>{new Date(t.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <DataTable
+          columns={columns}
+          data={data}
+          searchPlaceholder="Search transactions..."
+          emptyMessage="No transactions found."
+        />
       )}
     </div>
   );

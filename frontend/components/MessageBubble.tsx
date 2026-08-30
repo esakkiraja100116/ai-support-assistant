@@ -1,5 +1,7 @@
 import {
   ChatUIMessage,
+  RedemptionSelectionData,
+  RedemptionTrackingData,
   TextAnswerData,
   TransactionExplanationData,
   TransactionSelectionData,
@@ -9,6 +11,8 @@ import { EscalateCard } from "./EscalateCard";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { MarkdownText } from "./MarkdownText";
+import { RedemptionOrderSelector } from "./RedemptionOrderSelector";
+import { RedemptionTrackingDetail } from "./RedemptionTrackingDetail";
 import { TransactionDetail } from "./TransactionDetail";
 import { TransactionSelector } from "./TransactionSelector";
 import { TransactionsSummary } from "./TransactionsSummary";
@@ -16,14 +20,17 @@ import { TransactionsSummary } from "./TransactionsSummary";
 interface Props {
   message: ChatUIMessage;
   onSelectTransaction: (id: string) => void;
+  onSelectRedemptionOrder: (orderRef: string) => void;
   onRetry: (id: string) => void;
 }
 
-export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) {
+const BUBBLE = "max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2.5 text-sm leading-snug whitespace-pre-wrap";
+
+export function MessageBubble({ message, onSelectTransaction, onSelectRedemptionOrder, onRetry }: Props) {
   if (message.role === "user") {
     return (
-      <div className="message-row user">
-        <div className="bubble user-bubble">{message.text}</div>
+      <div className="flex justify-end">
+        <div className={`${BUBBLE} rounded-br-sm bg-primary text-primary-foreground`}>{message.text}</div>
       </div>
     );
   }
@@ -36,14 +43,14 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
     // render the same text through MarkdownText.
     if (message.streaming && message.text) {
       return (
-        <div className="message-row assistant">
-          <div className="bubble assistant-bubble">{message.text}</div>
+        <div className="flex flex-col items-start gap-2">
+          <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>{message.text}</div>
         </div>
       );
     }
     return (
-      <div className="message-row assistant">
-        <div className="bubble assistant-bubble">
+      <div className="flex flex-col items-start gap-2">
+        <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
           <LoadingIndicator />
         </div>
       </div>
@@ -52,7 +59,7 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
 
   if (message.status === "error") {
     return (
-      <div className="message-row assistant">
+      <div className="flex flex-col items-start gap-2">
         <ErrorBanner message={message.text} onRetry={() => onRetry(message.id)} />
       </div>
     );
@@ -63,21 +70,18 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
 
   if (response.type === "TRANSACTION_SELECTION") {
     return (
-      <div className="message-row assistant">
-        <div className="bubble assistant-bubble">
+      <div className="flex flex-col items-start gap-2">
+        <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
           <MarkdownText text={response.message} />
         </div>
-        <TransactionSelector
-          data={response.data as TransactionSelectionData}
-          onSelect={onSelectTransaction}
-        />
+        <TransactionSelector data={response.data as TransactionSelectionData} onSelect={onSelectTransaction} />
       </div>
     );
   }
 
   if (response.type === "TRANSACTION_EXPLANATION") {
     return (
-      <div className="message-row assistant">
+      <div className="flex flex-col items-start gap-2">
         <TransactionDetail data={response.data as TransactionExplanationData} message={response.message} />
       </div>
     );
@@ -85,15 +89,34 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
 
   if (response.type === "TRANSACTION_SUMMARY") {
     return (
-      <div className="message-row assistant">
+      <div className="flex flex-col items-start gap-2">
         <TransactionsSummary data={response.data as TransactionsSummaryData} message={response.message} />
+      </div>
+    );
+  }
+
+  if (response.type === "REDEMPTION_SELECTION") {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
+          <MarkdownText text={response.message} />
+        </div>
+        <RedemptionOrderSelector data={response.data as RedemptionSelectionData} onSelect={onSelectRedemptionOrder} />
+      </div>
+    );
+  }
+
+  if (response.type === "REDEMPTION_TRACKING") {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <RedemptionTrackingDetail data={response.data as RedemptionTrackingData} message={response.message} />
       </div>
     );
   }
 
   if (response.type === "ESCALATE") {
     return (
-      <div className="message-row assistant">
+      <div className="flex flex-col items-start gap-2">
         <EscalateCard message={response.message} />
       </div>
     );
@@ -101,7 +124,7 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
 
   if (response.type === "ERROR") {
     return (
-      <div className="message-row assistant">
+      <div className="flex flex-col items-start gap-2">
         <ErrorBanner message={response.message} onRetry={() => onRetry(message.id)} />
       </div>
     );
@@ -109,10 +132,10 @@ export function MessageBubble({ message, onSelectTransaction, onRetry }: Props) 
 
   const grounded = (response.data as TextAnswerData | undefined)?.grounded;
   return (
-    <div className="message-row assistant">
-      <div className="bubble assistant-bubble">
+    <div className="flex flex-col items-start gap-2">
+      <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
         <MarkdownText text={response.message} />
-        {grounded === false && <div className="grounding-note">Not found in our knowledge base</div>}
+        {grounded === false && <div className="mt-1.5 text-xs text-muted-foreground">Not found in our knowledge base</div>}
       </div>
     </div>
   );
