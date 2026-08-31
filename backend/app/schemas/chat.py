@@ -14,6 +14,7 @@ class ChatResponseType(str, Enum):
     TRANSACTION_SUMMARY = "TRANSACTION_SUMMARY"
     REDEMPTION_SELECTION = "REDEMPTION_SELECTION"
     REDEMPTION_TRACKING = "REDEMPTION_TRACKING"
+    ORDERS_OVERVIEW = "ORDERS_OVERVIEW"
     ESCALATE = "ESCALATE"
     ERROR = "ERROR"
 
@@ -52,6 +53,11 @@ class RedemptionSelectionData(BaseModel):
 
 class RedemptionTrackingData(BaseModel):
     tracking: RedemptionTrackingOut
+
+
+class OrdersOverviewData(BaseModel):
+    transactions: list[TransactionOut]
+    redemption_orders: list[RedemptionOrderOut]
 
 
 class EscalateData(BaseModel):
@@ -114,6 +120,18 @@ class ChatResponse(BaseModel):
             type=ChatResponseType.REDEMPTION_TRACKING,
             message=message,
             data=RedemptionTrackingData(tracking=tracking).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def orders_overview(
+        cls, message: str, transactions: list[TransactionOut], redemption_orders: list[RedemptionOrderOut]
+    ) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.ORDERS_OVERVIEW,
+            message=message,
+            data=OrdersOverviewData(transactions=transactions, redemption_orders=redemption_orders).model_dump(
+                mode="json"
+            ),
         )
 
     @classmethod

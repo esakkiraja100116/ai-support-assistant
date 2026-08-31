@@ -5,6 +5,7 @@ export type ChatResponseType =
   | "TRANSACTION_SUMMARY"
   | "REDEMPTION_SELECTION"
   | "REDEMPTION_TRACKING"
+  | "ORDERS_OVERVIEW"
   | "ESCALATE"
   | "ERROR";
 
@@ -76,6 +77,11 @@ export interface RedemptionTrackingData {
   tracking: RedemptionTracking;
 }
 
+export interface OrdersOverviewData {
+  transactions: TransactionSummary[];
+  redemption_orders: RedemptionOrderSummary[];
+}
+
 export interface EscalateData {
   contact_email: string;
 }
@@ -95,6 +101,7 @@ export interface ChatResponse {
     | TransactionsSummaryData
     | RedemptionSelectionData
     | RedemptionTrackingData
+    | OrdersOverviewData
     | EscalateData
     | ErrorData
     | null;

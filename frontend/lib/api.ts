@@ -66,6 +66,12 @@ export function login(
 
 export interface StreamCallbacks {
   onDelta: (text: string) => void;
+  // Fired when one message in a multi-message turn completes but the turn
+  // isn't over yet (e.g. a generic "list my orders" reply, sent as a
+  // transaction message followed by a separate redemption message rather
+  // than one merged bubble) - optional since most streams only ever emit
+  // "done" once and never call this.
+  onMessage?: (response: ChatResponse) => void;
   onDone: (response: ChatResponse) => void;
   onError: (message: string) => void;
 }
@@ -94,6 +100,8 @@ async function streamPost(path: string, body: object, token: string, callbacks: 
       onmessage(ev) {
         if (ev.event === "delta") {
           callbacks.onDelta((JSON.parse(ev.data) as { text: string }).text);
+        } else if (ev.event === "message") {
+          callbacks.onMessage?.(JSON.parse(ev.data) as ChatResponse);
         } else if (ev.event === "done") {
           callbacks.onDone(JSON.parse(ev.data) as ChatResponse);
         }

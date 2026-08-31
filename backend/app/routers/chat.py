@@ -14,7 +14,7 @@ from app.schemas.chat import ChatRequest, ChatResponse
 from app.services import conversation_service
 from app.services.orchestrator import chat_turn, chat_turn_stream
 from app.services.sse import STREAM_DELTA_DELAY_SECONDS, sse_event
-from app.services.turn_metrics import turn_scope
+from app.services.turn_metrics import TurnMetrics, turn_scope
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -90,11 +90,32 @@ def chat_stream(
 
             try:
                 turn = chat_turn_stream(db, current_user, payload.message, effective_history)
-                for delta in turn:
-                    chunks.put(sse_event("delta", {"text": delta}))
-                    time.sleep(STREAM_DELTA_DELAY_SECONDS)
+                # Normally exactly one ChatResponse is ever produced for a turn,
+                # persisted below once the generator is exhausted. For the one
+                # split case (see StreamedChatTurn's split_orders_listing), the
+                # generator also yields a completed ChatResponse mid-stream for
+                # every message except the last - persisted and emitted as its
+                # own "message" event immediately, rather than being merged into
+                # one bubble. `metrics_cursor` slices turn.metrics.calls (a
+                # single list accumulated across the whole turn) so each
+                # persisted message gets only the calls made since the previous
+                # one, instead of every earlier message's cost being double
+                # counted into every later one.
+                metrics_cursor = 0
+                for item in turn:
+                    if isinstance(item, ChatResponse):
+                        segment = TurnMetrics(calls=turn.metrics.calls[metrics_cursor:])
+                        metrics_cursor = len(turn.metrics.calls)
+                        conversation_service.add_assistant_message(db, conversation, item, segment, title_metrics)
+                        db.commit()
+                        title_metrics = None
+                        chunks.put(sse_event("message", item.model_dump(mode="json")))
+                    else:
+                        chunks.put(sse_event("delta", {"text": item}))
+                        time.sleep(STREAM_DELTA_DELAY_SECONDS)
                 response = turn.response or ChatResponse.error("llm_unavailable", "No response was generated.")
-                conversation_service.add_assistant_message(db, conversation, response, turn.metrics, title_metrics)
+                final_segment = TurnMetrics(calls=turn.metrics.calls[metrics_cursor:])
+                conversation_service.add_assistant_message(db, conversation, response, final_segment, title_metrics)
                 db.commit()
                 chunks.put(sse_event("done", response.model_dump(mode="json")))
             except Exception:

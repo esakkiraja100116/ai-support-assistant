@@ -111,7 +111,11 @@ GET_ONGOING_REDEMPTIONS = {
             "shipped to them. Use this for shipment/delivery tracking questions like 'where is "
             "my order', 'track my gold coin', 'has my bar shipped yet', 'what is my AWB status'. "
             "This is separate from get_recent_transactions, which covers BUY/SELL/RECURRING_BUY "
-            "activity, not physical delivery/shipment status."
+            "activity, not physical delivery/shipment status. "
+            "For a generic 'list/show my orders' request naming no specific type, also call "
+            "get_recent_transactions in the same turn. Do NOT do this if the customer restricts "
+            "the request to one type - words like 'only'/'just' (e.g. 'list only my redemption/"
+            "delivery orders') mean call get_ongoing_redemptions alone."
         ),
         "parameters": {"type": "object", "properties": {}},
     },
@@ -148,7 +152,25 @@ NO_SINGLE_REDEMPTION_MATCH = {
             "from the list you were given. Never describe, list, or summarize the orders "
             "yourself - the app renders them separately."
         ),
-        "parameters": {"type": "object", "properties": {}},
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "enum": ["list_requested", "ambiguous", "not_found"],
+                    "description": (
+                        "'list_requested' if the customer explicitly asked to see their orders/"
+                        "deliveries in general. 'ambiguous' if they described a specific order but "
+                        "more than one in the list could match. 'not_found' if they described "
+                        "something specific (e.g. a particular product, status like 'delivered', or "
+                        "date) that does NOT match ANY order in this list at all - this list only "
+                        "contains ongoing orders, so a completed/delivered/failed order they mention "
+                        "will never be in it. Do not silently treat this the same as 'ambiguous'."
+                    ),
+                },
+            },
+            "required": ["reason"],
+        },
     },
 }
 
@@ -197,11 +219,14 @@ NO_SINGLE_MATCH = {
             "properties": {
                 "reason": {
                     "type": "string",
-                    "enum": ["list_requested", "ambiguous"],
+                    "enum": ["list_requested", "ambiguous", "not_found"],
                     "description": (
                         "'list_requested' if the customer explicitly asked to see their "
                         "transactions/orders/activity in general. 'ambiguous' if they described "
-                        "a specific transaction but more than one could match, or it's unclear."
+                        "a specific transaction but more than one could match, or it's unclear. "
+                        "'not_found' if they described something specific (e.g. a particular date, "
+                        "amount, or status) that does not match ANY transaction in the list at all - "
+                        "do not silently treat this the same as 'ambiguous'."
                     ),
                 },
             },

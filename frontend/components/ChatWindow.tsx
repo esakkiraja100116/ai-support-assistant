@@ -4,6 +4,7 @@ import { useChat } from "@/hooks/useChat";
 import { AuthSession } from "@/lib/types";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
+import { SuggestedQuestions } from "./SuggestedQuestions";
 
 interface Props {
   session: AuthSession;
@@ -21,12 +22,18 @@ export function ChatWindow({ session, conversationId, onTurnComplete }: Props) {
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <MessageList
-        messages={messages}
-        onSelectTransaction={selectTransaction}
-        onSelectRedemptionOrder={selectRedemptionOrder}
-        onRetry={retry}
-      />
+      {messages.length === 0 ? (
+        <div className="flex flex-1 flex-col justify-center overflow-y-auto">
+          <SuggestedQuestions onSelect={sendMessage} />
+        </div>
+      ) : (
+        <MessageList
+          messages={messages}
+          onSelectTransaction={selectTransaction}
+          onSelectRedemptionOrder={selectRedemptionOrder}
+          onRetry={retry}
+        />
+      )}
       <ChatInput onSend={sendMessage} disabled={isBusy} />
     </div>
   );

@@ -1,5 +1,6 @@
 import {
   ChatUIMessage,
+  OrdersOverviewData,
   RedemptionSelectionData,
   RedemptionTrackingData,
   TextAnswerData,
@@ -110,6 +111,32 @@ export function MessageBubble({ message, onSelectTransaction, onSelectRedemption
     return (
       <div className="flex flex-col items-start gap-2">
         <RedemptionTrackingDetail data={response.data as RedemptionTrackingData} message={response.message} />
+      </div>
+    );
+  }
+
+  if (response.type === "ORDERS_OVERVIEW") {
+    const data = response.data as OrdersOverviewData;
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
+          <MarkdownText text={response.message} />
+        </div>
+        {data.transactions.length > 0 && (
+          <div className="flex w-full flex-col gap-2">
+            <div className="text-xs font-semibold text-muted-foreground">Transactions</div>
+            <TransactionSelector data={{ transactions: data.transactions }} onSelect={onSelectTransaction} />
+          </div>
+        )}
+        {data.redemption_orders.length > 0 && (
+          <div className="flex w-full flex-col gap-2">
+            <div className="text-xs font-semibold text-muted-foreground">Redemption orders</div>
+            <RedemptionOrderSelector
+              data={{ orders: data.redemption_orders }}
+              onSelect={onSelectRedemptionOrder}
+            />
+          </div>
+        )}
       </div>
     );
   }

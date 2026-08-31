@@ -129,8 +129,8 @@ def seed() -> None:
 
         alice = users.get("alice")
         if alice is not None:
-            for tpl in REDEMPTION_TEMPLATES:
-                created = now - timedelta(days=2)
+            for i, tpl in enumerate(REDEMPTION_TEMPLATES):
+                created = now - timedelta(days=len(REDEMPTION_TEMPLATES) - i)
                 db.add(
                     RedemptionOrder(
                         txn_id=tpl["txn_id"],

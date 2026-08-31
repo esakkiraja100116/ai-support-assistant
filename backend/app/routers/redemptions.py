@@ -8,11 +8,12 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
+from app.config import settings
 from app.db import SessionLocal, get_db
 from app.models import User
 from app.schemas.chat import ChatResponse
 from app.schemas.redemptions import RedemptionOrderOut, TrackRequest
-from app.services import conversation_service, redemption_service
+from app.services import conversation_service, rate_limit, redemption_service
 from app.services.orchestrator import track_redemption_order, track_redemption_order_stream
 from app.services.sse import STREAM_DELTA_DELAY_SECONDS, sse_event
 from app.services.turn_metrics import TurnMetrics, turn_scope
@@ -49,6 +50,14 @@ def track(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChatResponse:
+    if not rate_limit.is_allowed(
+        str(current_user.id),
+        "redemption_track",
+        settings.redemption_track_rate_limit,
+        settings.redemption_track_rate_limit_window_seconds,
+    ):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many tracking requests - please try again shortly.")
+
     order = redemption_service.get_ongoing_redemption_by_ref(db, current_user, order_ref)
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Redemption order not found")
@@ -85,6 +94,14 @@ def track_stream(
     payload: TrackRequest = TrackRequest(),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
+    if not rate_limit.is_allowed(
+        str(current_user.id),
+        "redemption_track",
+        settings.redemption_track_rate_limit,
+        settings.redemption_track_rate_limit_window_seconds,
+    ):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many tracking requests - please try again shortly.")
+
     # Same worker-owns-its-own-session pattern as routers/transactions.py's
     # /explain/stream - see that endpoint's comment for why the get_db()
     # dependency isn't used here at all.
