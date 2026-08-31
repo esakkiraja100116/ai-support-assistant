@@ -263,10 +263,21 @@ def test_row9_malformed_upstream_response_gives_customer_generic_answer_not_500(
 # ongoing and the customer actually selecting/tracking it. Documents CURRENT
 # behavior - see gap report on whether this matches "return the latest state".
 def test_row11_order_delivered_between_listing_and_track_click(
-    client, make_user, make_redemption_order, auth_headers, db_session
+    client, make_user, make_redemption_order, auth_headers, db_session, flush_redis
 ):
+    """T12 in the minimum test matrix: an order's status changes to DELIVERED
+    between being listed as ongoing and the customer clicking to track it.
+    Must return the order's actual current state (not a generic 404, which
+    would wrongly imply the order never existed) and invalidate the cached
+    ongoing-orders list so a subsequent listing doesn't keep showing it as
+    active."""
     alice = make_user("alice", "Alice")
     order = make_redemption_order(alice, "txn_race", status="IN_TRANSIT", awb_number="PRO_RACE")
+
+    # Populate the ongoing-orders cache, as a real "list my orders" turn
+    # would have, before the status changes underneath it.
+    listing_resp = client.get("/redemptions/ongoing", headers=auth_headers(alice))
+    assert order.id in [o["order_ref"] for o in listing_resp.json()]
 
     # Simulate the status changing (e.g. courier webhook) after the order was
     # already shown to the customer as "ongoing".
@@ -277,7 +288,15 @@ def test_row11_order_delivered_between_listing_and_track_click(
 
     resp = client.post(f"/redemptions/{order.id}/track", headers=auth_headers(alice))
 
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["type"] == "REDEMPTION_TRACKING"
+    assert "DELIVERED" in body["message"]
+    assert body["data"]["tracking"]["status"] == "DELIVERED"
+
+    # The cache must be invalidated - a fresh listing no longer shows it.
+    fresh_listing = client.get("/redemptions/ongoing", headers=auth_headers(alice))
+    assert order.id not in [o["order_ref"] for o in fresh_listing.json()]
 
 
 # Row 12: an order with a status this app's enum doesn't recognize at all.

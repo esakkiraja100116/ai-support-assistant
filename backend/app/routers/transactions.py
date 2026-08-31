@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_current_user
 from app.config import settings
 from app.db import SessionLocal, get_db
-from app.models import TxnType, User
+from app.models import TxnType, User, is_trackable_redemption
 from app.schemas.chat import ChatResponse
 from app.schemas.redemptions import RedemptionOrderOut, TrackRequest
 from app.schemas.transactions import ExplainRequest, TransactionDetailOut, TransactionOut
@@ -19,6 +19,7 @@ from app.services.orchestrator import (
     explain_transaction,
     explain_transaction_stream,
     fallback_explanation,
+    redemption_status_changed_response,
     track_redemption_order,
     track_redemption_order_stream,
 )
@@ -199,7 +200,11 @@ def track(
     ):
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many tracking requests - please try again shortly.")
 
-    order = transaction_service.get_ongoing_transaction_by_ref(db, current_user, order_ref)
+    # Fetched without the trackable-status filter first so a status change
+    # since this order was shown as ongoing (e.g. delivered in the meantime)
+    # can be reported accurately, rather than a generic 404 that would
+    # wrongly imply the order never existed at all.
+    order = transaction_service.get_redemption_order_by_ref(db, current_user, order_ref)
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Redemption order not found")
 
@@ -219,10 +224,15 @@ def track(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
         conversation_service.add_user_message(db, conversation, user_message_text)
 
-    with turn_scope() as metrics:
-        response = track_redemption_order(
-            transaction_service.TransactionRecord.from_model(order), current_user.display_name, user_message_text
-        )
+    if not is_trackable_redemption(order.status):
+        transaction_service.invalidate_ongoing_redemptions_cache(current_user.id)
+        response = redemption_status_changed_response(order)
+        metrics = TurnMetrics()
+    else:
+        with turn_scope() as metrics:
+            response = track_redemption_order(
+                transaction_service.TransactionRecord.from_model(order), current_user.display_name, user_message_text
+            )
 
     if conversation is not None:
         conversation_service.add_assistant_message(db, conversation, response, metrics, title_metrics)
@@ -253,7 +263,9 @@ def track_stream(
     def worker():
         db = SessionLocal()
         try:
-            order = transaction_service.get_ongoing_transaction_by_ref(db, current_user, order_ref)
+            # Fetched without the trackable-status filter first, same
+            # reasoning as the non-streaming /track endpoint above.
+            order = transaction_service.get_redemption_order_by_ref(db, current_user, order_ref)
             if order is None:
                 ready.put(False)
                 return
@@ -273,29 +285,35 @@ def track_stream(
                 else:
                     conversation_service.add_user_message(db, conversation, user_message_text)
 
-            metrics = TurnMetrics()
-            try:
-                streamed = track_redemption_order_stream(
-                    order_record, current_user.display_name, user_message_text, metrics=metrics
-                )
-                for text_so_far in streamed:
-                    chunks.put(sse_event("delta", {"text": text_so_far}))
-                    time.sleep(STREAM_DELTA_DELAY_SECONDS)
-                text = streamed.text
-                tracking = streamed.tracking
-            except Exception:
-                logger.exception("Chat completion (redemption tracking stream) failed")
-                # streamed.tracking may be unset if the failure happened before
-                # _build_redemption_tracking even ran - fall back to a plain
-                # text answer in that unlikely case rather than crashing.
-                text = "Sorry, tracking is temporarily unavailable right now. Please try again shortly."
-                tracking = None
+            if not is_trackable_redemption(order.status):
+                transaction_service.invalidate_ongoing_redemptions_cache(current_user.id)
+                response = redemption_status_changed_response(order)
+                metrics = TurnMetrics()
+                chunks.put(sse_event("delta", {"text": response.message}))
+            else:
+                metrics = TurnMetrics()
+                try:
+                    streamed = track_redemption_order_stream(
+                        order_record, current_user.display_name, user_message_text, metrics=metrics
+                    )
+                    for text_so_far in streamed:
+                        chunks.put(sse_event("delta", {"text": text_so_far}))
+                        time.sleep(STREAM_DELTA_DELAY_SECONDS)
+                    text = streamed.text
+                    tracking = streamed.tracking
+                except Exception:
+                    logger.exception("Chat completion (redemption tracking stream) failed")
+                    # streamed.tracking may be unset if the failure happened before
+                    # _build_redemption_tracking even ran - fall back to a plain
+                    # text answer in that unlikely case rather than crashing.
+                    text = "Sorry, tracking is temporarily unavailable right now. Please try again shortly."
+                    tracking = None
 
-            response = (
-                ChatResponse.redemption_tracking(text, tracking)
-                if tracking is not None
-                else ChatResponse.text_answer(text, grounded=True)
-            )
+                response = (
+                    ChatResponse.redemption_tracking(text, tracking)
+                    if tracking is not None
+                    else ChatResponse.text_answer(text, grounded=True)
+                )
             if conversation is not None:
                 conversation_service.add_assistant_message(db, conversation, response, metrics, title_metrics)
                 db.commit()

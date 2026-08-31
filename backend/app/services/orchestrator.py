@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Transaction, TxnType, User
+from app.models import Transaction, TxnType, User, is_trackable_redemption
 from app.schemas.chat import ChatMessage, ChatResponse, ChatResponseType, OrderCardOut
 from app.schemas.redemptions import RedemptionTrackingOut
 from app.schemas.transactions import TransactionOut
@@ -495,6 +495,26 @@ def fallback_redemption_orders_summary(orders: list[TransactionRecord]) -> str:
     return f"You have {len(orders)} matching orders: " + "; ".join(lines) + "."
 
 
+def redemption_status_changed_response(order: Transaction) -> ChatResponse:
+    """The order exists and belongs to this user, but its status has moved
+    out of the trackable set since it was last shown as ongoing (e.g. it
+    was just delivered, or the delivery attempt was cancelled) - reports
+    the actual current status directly (grounded in the DB, never the
+    tracking API, since a terminal status needs no live courier lookup)
+    rather than a generic "couldn't find that order", which would wrongly
+    imply the order never existed at all."""
+    record = TransactionRecord.from_model(order)
+    tracking = RedemptionTrackingOut(
+        order_ref=record.id,
+        product_name=record.product,
+        quantity=record.quantity or 0.0,
+        status=record.status,
+        awb_available=record.awb_number is not None,
+    )
+    text = f"Your {record.product} ({record.quantity}g) order status has changed to {record.status} since you last checked."
+    return ChatResponse.redemption_tracking(text, tracking)
+
+
 def _redemption_tracking_out(
     order: TransactionRecord, lookup: "tracking_service.TrackingLookup | None"
 ) -> RedemptionTrackingOut:
@@ -558,9 +578,16 @@ def _track_and_respond(db: Session, user: User, order_record: TransactionRecord,
     # the spec's "re-validate ownership immediately before use" requirement,
     # same idea as resolve_transactions' id-membership check one level up,
     # plus a live re-check here since tracking is the more sensitive action.
-    fresh = transaction_service.get_ongoing_transaction_by_ref(db, user, order_record.id)
+    # Fetched without the trackable-status filter first so a status change
+    # (e.g. delivered since this order was listed as ongoing) can be
+    # reported accurately, rather than folded into the same generic
+    # "couldn't find that order" as a genuinely nonexistent/not-owned ref.
+    fresh = transaction_service.get_redemption_order_by_ref(db, user, order_record.id)
     if fresh is None:
         return ChatResponse.text_answer("Sorry, I couldn't find that order.", grounded=True)
+    if not is_trackable_redemption(fresh.status):
+        transaction_service.invalidate_ongoing_redemptions_cache(user.id)
+        return redemption_status_changed_response(fresh)
     return track_redemption_order(TransactionRecord.from_model(fresh), user.display_name, original_question)
 
 
@@ -594,6 +621,7 @@ def _handle_redemption_tracking(
     resolve_messages.append({"role": "user", "content": message})
 
     selection_message = REDEMPTION_SELECTION_MESSAGES["ambiguous"]
+    narrowed_order_out = order_out
     try:
         resolved = llm_client.chat_completion(
             resolve_messages,
@@ -619,10 +647,17 @@ def _handle_redemption_tracking(
                 # refs empty (every ref hallucinated) - fall through to the safe list below
             elif call.function.name == "no_single_redemption_match":
                 selection_message = REDEMPTION_SELECTION_MESSAGES.get(args.get("reason"), REDEMPTION_SELECTION_MESSAGES["ambiguous"])
+                # A "track my gold coin" style request that narrows by product/
+                # type but still can't resolve to exactly one shows only the
+                # narrowed matches, not every ongoing order - a customer
+                # shouldn't be asked to pick from orders they didn't ask about.
+                matching_refs = [r for r in args.get("matching_order_refs", []) if r in orders_by_ref]
+                if matching_refs:
+                    narrowed_order_out = [transaction_service.to_redemption_out(orders_by_ref[r]) for r in matching_refs]
     except Exception:
         logger.exception("Redemption order resolution call failed; falling back to selection list")
 
-    return ChatResponse.redemption_selection(selection_message, order_out)
+    return ChatResponse.redemption_selection(selection_message, narrowed_order_out)
 
 
 def _transaction_record(transaction: Transaction) -> dict:
@@ -1237,6 +1272,7 @@ class StreamedChatTurn:
 
         resolved_refs: list[str] = []
         selection_message = REDEMPTION_SELECTION_MESSAGES["ambiguous"]
+        narrowed_order_out = order_out
         try:
             resolved = llm_client.chat_completion(
                 resolve_messages,
@@ -1252,6 +1288,9 @@ class StreamedChatTurn:
                     resolved_refs = [r for r in args.get("order_refs", []) if r in orders_by_ref]
                 elif call.function.name == "no_single_redemption_match":
                     selection_message = REDEMPTION_SELECTION_MESSAGES.get(args.get("reason"), REDEMPTION_SELECTION_MESSAGES["ambiguous"])
+                    matching_refs = [r for r in args.get("matching_order_refs", []) if r in orders_by_ref]
+                    if matching_refs:
+                        narrowed_order_out = [transaction_service.to_redemption_out(orders_by_ref[r]) for r in matching_refs]
         except Exception:
             logger.exception("Redemption order resolution call failed; falling back to selection list")
 
@@ -1263,7 +1302,7 @@ class StreamedChatTurn:
             yield from self._stream_explain_redemption_orders_summary(chosen, message, user.display_name)
             return
 
-        self.response = ChatResponse.redemption_selection(selection_message, order_out)
+        self.response = ChatResponse.redemption_selection(selection_message, narrowed_order_out)
         yield selection_message
 
     def _stream_track_redemption(self, db: Session, user: User, order_record: TransactionRecord, original_question: str):
@@ -1275,11 +1314,16 @@ class StreamedChatTurn:
             yield text
             return
 
-        fresh = transaction_service.get_ongoing_transaction_by_ref(db, user, order_record.id)
+        fresh = transaction_service.get_redemption_order_by_ref(db, user, order_record.id)
         if fresh is None:
             text = "Sorry, I couldn't find that order."
             self.response = ChatResponse.text_answer(text, grounded=True)
             yield text
+            return
+        if not is_trackable_redemption(fresh.status):
+            transaction_service.invalidate_ongoing_redemptions_cache(user.id)
+            self.response = redemption_status_changed_response(fresh)
+            yield self.response.message
             return
         streamed = track_redemption_order_stream(
             TransactionRecord.from_model(fresh), user.display_name, original_question, metrics=self.metrics

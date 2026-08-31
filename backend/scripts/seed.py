@@ -27,6 +27,19 @@ from app.services import llm_client  # noqa: E402
 USERS = [
     {"username": "alice", "display_name": "Alice Nguyen", "role": "USER"},
     {"username": "bob", "display_name": "Bob Fernandez", "role": "USER"},
+    # carol/dave/erin exist specifically to make the redemption-tracking
+    # minimum test matrix's DB-state rows testable as real conversations,
+    # not just automated fixtures - bob already covers "no redemptions" (T1),
+    # alice already covers "multiple ongoing" (T5); these three fill the
+    # states neither of them has: delivered-only (T2), failed-only (T3), and
+    # exactly-one-ongoing (T4).
+    {"username": "carol", "display_name": "Carol Mensah", "role": "USER"},
+    {"username": "dave", "display_name": "Dave Okafor", "role": "USER"},
+    {"username": "erin", "display_name": "Erin Walsh", "role": "USER"},
+    # frank covers T7: ongoing + delivered + failed all at once, on one user,
+    # so "only ongoing is considered" is testable against every exclusion
+    # category simultaneously, not just one at a time.
+    {"username": "frank", "display_name": "Frank Torres", "role": "USER"},
     {"username": "admin", "display_name": "Amara Singh (Admin)", "role": "ADMINISTRATOR"},
 ]
 
@@ -61,17 +74,17 @@ TXN_TEMPLATES = [
     {"type": "RECURRING_BUY", "product": "GOLD22", "amount": 1000, "status": "FAILED", "failure_reason": "Insufficient funds in linked account", "payment_method": "Net Banking"},
 ]
 
-# Seeded for alice only, cross-referenced to the AWBs in
+# Alice's redemptions, cross-referenced to the AWBs in
 # app/services/tracking_fixtures.py so the demo chat flow ("where is my
 # order") has real ongoing orders to resolve/track against - 4 ongoing
 # (one per fixture AWB, plus one with no AWB yet) + 1 already-delivered
 # (excluded from active discovery, per the spec's own note - reachable only
-# via a direct tracking_service call, not through chat). Each is now a
+# via a direct tracking_service call, not through chat). Each is a
 # Transaction row with type=REDEMPTION, linked via related_transaction_id to
-# the one SUCCESS-status BUY transaction below - a redemption only ever
-# happens because gold was actually bought first, so this is now a real,
-# meaningful relationship rather than the free-text label the old
-# RedemptionOrder.txn_id was.
+# a SUCCESS-status BUY transaction - a redemption only ever happens because
+# gold was actually bought first, so this is a real, meaningful relationship
+# rather than a free-text label. carol/dave/erin (see EXTRA_REDEMPTIONS
+# below) get the same treatment for the DB states alice/bob don't cover.
 REDEMPTION_TEMPLATES = [
     {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
      "quantity": 5.0, "status": "DELIVERED", "awb_number": "PRO19460771"},
@@ -84,6 +97,42 @@ REDEMPTION_TEMPLATES = [
     {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
      "quantity": 10.0, "status": "PROCESSING", "awb_number": None},
 ]
+
+# One redemption each for carol/dave/erin - see the USERS list comment for
+# why these three exist. Each list holds exactly one row, kept in the same
+# dict-of-templates shape as REDEMPTION_TEMPLATES so the seeding loop below
+# can treat alice and these three uniformly.
+EXTRA_REDEMPTIONS: dict[str, list[dict]] = {
+    # T2: delivered only - zero ongoing orders, never reachable via the
+    # tracking flow at all (no fixture needed for its AWB).
+    "carol": [
+        {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
+         "quantity": 6.0, "status": "DELIVERED", "awb_number": "PRO19460781"},
+    ],
+    # T3: failed/cancelled only - zero ongoing orders, same reasoning.
+    "dave": [
+        {"product": "Gold Coin", "product_type": "coin", "metal_type": "gold",
+         "quantity": 4.0, "status": "CANCELLED", "awb_number": "PRO19460782"},
+    ],
+    # T4: exactly one ongoing order with a real AWB - auto-selects straight
+    # to tracking, no selector step. Uses its own fixture (PRO19460780 in
+    # tracking_fixtures.py) rather than reusing one of alice's.
+    "erin": [
+        {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
+         "quantity": 4.0, "status": "IN_TRANSIT", "awb_number": "PRO19460780"},
+    ],
+    # T7: one ongoing (with a real AWB, PRO19460783) alongside one delivered
+    # and one failed - "only the ongoing order is considered" tested against
+    # all three categories on a single user at once.
+    "frank": [
+        {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
+         "quantity": 3.0, "status": "DELIVERED", "awb_number": "PRO19460784"},
+        {"product": "Gold Coin", "product_type": "coin", "metal_type": "gold",
+         "quantity": 2.0, "status": "IN_TRANSIT", "awb_number": "PRO19460783"},
+        {"product": "Gold Coin", "product_type": "coin", "metal_type": "gold",
+         "quantity": 1.0, "status": "REJECTED", "awb_number": "PRO19460785"},
+    ],
+}
 
 
 def seed() -> None:
@@ -111,7 +160,7 @@ def seed() -> None:
 
         txn_seq = 1001
         now = datetime.now(timezone.utc)
-        alices_successful_buy_id: str | None = None
+        successful_buy_id_by_username: dict[str, str] = {}
         for username, user in users.items():
             if user.role == "ADMINISTRATOR":
                 continue
@@ -132,18 +181,22 @@ def seed() -> None:
                         updated_at=created,
                     )
                 )
-                if username == "alice" and tpl["type"] == "BUY" and tpl["status"] == "SUCCESS":
-                    alices_successful_buy_id = txn_id
+                if username not in successful_buy_id_by_username and tpl["type"] == "BUY" and tpl["status"] == "SUCCESS":
+                    successful_buy_id_by_username[username] = txn_id
                 txn_seq += 1
 
-        alice = users.get("alice")
-        if alice is not None:
-            for i, tpl in enumerate(REDEMPTION_TEMPLATES):
-                created = now - timedelta(days=len(REDEMPTION_TEMPLATES) - i)
+        redemptions_by_username = {"alice": REDEMPTION_TEMPLATES, **EXTRA_REDEMPTIONS}
+        rdm_seq = 1
+        for username, templates in redemptions_by_username.items():
+            user = users.get(username)
+            if user is None:
+                continue
+            for i, tpl in enumerate(templates):
+                created = now - timedelta(days=len(templates) - i)
                 db.add(
                     Transaction(
-                        id=f"rdm_{i + 1:04d}",
-                        user_id=alice.id,
+                        id=f"rdm_{rdm_seq:04d}",
+                        user_id=user.id,
                         type="REDEMPTION",
                         product=tpl["product"],
                         amount=None,
@@ -154,11 +207,12 @@ def seed() -> None:
                         product_type=tpl["product_type"],
                         metal_type=tpl["metal_type"],
                         quantity=tpl["quantity"],
-                        related_transaction_id=alices_successful_buy_id,
+                        related_transaction_id=successful_buy_id_by_username.get(username),
                         created_at=created,
                         updated_at=created,
                     )
                 )
+                rdm_seq += 1
 
         # Committed before embedding starts: users/transactions require no
         # external API and should land even if OPENAI_API_KEY is missing or
@@ -175,7 +229,7 @@ def seed() -> None:
 
         db.commit()
         txn_count = sum(1 for u in users.values() if u.role != "ADMINISTRATOR") * len(TXN_TEMPLATES)
-        redemption_count = len(REDEMPTION_TEMPLATES) if alice is not None else 0
+        redemption_count = rdm_seq - 1
         print(
             f"Seeded {len(users)} users, {txn_count} transactions, "
             f"{redemption_count} redemption orders, {len(FAQS)} support articles."

@@ -202,6 +202,19 @@ NO_SINGLE_REDEMPTION_MATCH = {
                         "will never be in it. Do not silently treat this the same as 'ambiguous'."
                     ),
                 },
+                "matching_order_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "For reason='ambiguous' ONLY: if the customer narrowed by product or type "
+                        "(e.g. 'track my gold coin' when they have two coins) but you still can't "
+                        "pick exactly one, list the order_refs that match what they narrowed to "
+                        "(e.g. just their coin orders) - the app shows only these as choices, not "
+                        "every ongoing order, so the customer isn't asked to pick from orders they "
+                        "didn't ask about. Omit/leave empty if the request named no narrowing at "
+                        "all (a truly generic 'where is my order')."
+                    ),
+                },
             },
             "required": ["reason"],
         },

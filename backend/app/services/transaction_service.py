@@ -185,6 +185,20 @@ def get_transaction_details(db: Session, user: User, transaction_id: str) -> Tra
     return db.scalars(stmt).first()
 
 
+def get_redemption_order_by_ref(db: Session, user: User, order_ref: str) -> Transaction | None:
+    """Ownership + type scoped only - deliberately does NOT filter by
+    trackable status, unlike get_ongoing_transaction_by_ref below. Always
+    hits Postgres directly, bypassing the ongoing-orders cache. Used when the
+    caller needs to distinguish "this order doesn't exist/isn't yours" from
+    "it exists but its status has changed since it was last shown as
+    ongoing" (e.g. it was just delivered) - those need different customer-
+    facing responses, not the same generic 404."""
+    txn = get_transaction_details(db, user, order_ref)
+    if txn is None or txn.type != TxnType.REDEMPTION:
+        return None
+    return txn
+
+
 def get_ongoing_transaction_by_ref(db: Session, user: User, order_ref: str) -> Transaction | None:
     """Always hits Postgres directly - deliberately bypasses the ongoing-
     orders cache entirely. This is the "re-validate ownership immediately
@@ -193,7 +207,23 @@ def get_ongoing_transaction_by_ref(db: Session, user: User, order_ref: str) -> T
     trackable status against a live read. Returns None (never another
     user's row, never a since-completed/failed order, never a non-REDEMPTION
     transaction) - callers map that to a generic 404/"not found"."""
-    txn = get_transaction_details(db, user, order_ref)
-    if txn is None or txn.type != TxnType.REDEMPTION or not is_trackable_redemption(txn.status):
+    txn = get_redemption_order_by_ref(db, user, order_ref)
+    if txn is None or not is_trackable_redemption(txn.status):
         return None
     return txn
+
+
+def invalidate_ongoing_redemptions_cache(user_id: uuid.UUID) -> None:
+    """Clears the cached ongoing-redemptions list for a user - called when a
+    live re-check discovers an order's status has moved out of the
+    trackable set since it was cached (e.g. just delivered), so a
+    subsequent "where is my order" listing doesn't keep showing it as
+    active until the cache's own TTL happens to expire. Both limit
+    variants are cleared since either could be the one currently cached
+    (see _ongoing_cache_key's docstring on why limit is part of the key)."""
+    try:
+        client = get_redis()
+        client.delete(_ongoing_cache_key(user_id, settings.orders_default_limit))
+        client.delete(_ongoing_cache_key(user_id, settings.orders_list_all_limit))
+    except redis.RedisError:
+        logger.warning("Redis unavailable invalidating ongoing-redemptions cache for %s", user_id)

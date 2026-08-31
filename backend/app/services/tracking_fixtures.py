@@ -169,4 +169,82 @@ TRACKING_FIXTURES: dict[str, dict] = {
             },
         },
     },
+    # Single-ongoing-order test case (T4 in the minimum test matrix) - a
+    # dedicated user (erin) with exactly one ongoing order, so the
+    # auto-select-without-a-selector-step path has a fresh fixture rather
+    # than reusing one of alice's AWBs.
+    "PRO19460780": {
+        "success": True,
+        "message": "Transaction details retrieved successfully",
+        "error": "",
+        "data": {
+            "user_id": 44,
+            "txn_id": "eR1nGx5QaZ",
+            "total_price": 500.0,
+            "product_name": "Gold Bar",
+            "gold_quantity_purchased": 4.0,
+            "txn_status": "IN_TRANSIT",
+            "awb_number": "PRO19460780",
+            "product_type": "bar",
+            "karat": "24",
+            "created_at": "2026-08-29T09:00:00+00:00",
+            "metal_type": "gold",
+            "tracking": {
+                "pod_no": "PRO19460780",
+                "history": [
+                    {
+                        "type": "InTransit",
+                        "remarks": "Despatched from Mumbai",
+                        "area": "Mumbai",
+                        "event_time": "2026-08-29T11:00:00+00:00",
+                    },
+                    {
+                        "type": "InTransit",
+                        "remarks": "Arrived at hub",
+                        "area": "Pune",
+                        "event_time": "2026-08-30T09:30:00+00:00",
+                    },
+                ],
+            },
+        },
+    },
+    # Mixed-state test case (T7 in the minimum test matrix) - a dedicated
+    # user (frank) with one ongoing order alongside a delivered one and a
+    # failed one, so "only the ongoing order is considered" is testable
+    # against a single user carrying all three categories at once.
+    "PRO19460783": {
+        "success": True,
+        "message": "Transaction details retrieved successfully",
+        "error": "",
+        "data": {
+            "user_id": 45,
+            "txn_id": "fR4nKq9WbX",
+            "total_price": 220.0,
+            "product_name": "Gold Coin",
+            "gold_quantity_purchased": 2.0,
+            "txn_status": "IN_TRANSIT",
+            "awb_number": "PRO19460783",
+            "product_type": "coin",
+            "karat": "24",
+            "created_at": "2026-08-29T10:00:00+00:00",
+            "metal_type": "gold",
+            "tracking": {
+                "pod_no": "PRO19460783",
+                "history": [
+                    {
+                        "type": "InTransit",
+                        "remarks": "Despatched from Hyderabad",
+                        "area": "Hyderabad",
+                        "event_time": "2026-08-29T12:00:00+00:00",
+                    },
+                    {
+                        "type": "InTransit",
+                        "remarks": "Arrived at hub",
+                        "area": "Chennai",
+                        "event_time": "2026-08-30T08:00:00+00:00",
+                    },
+                ],
+            },
+        },
+    },
 }

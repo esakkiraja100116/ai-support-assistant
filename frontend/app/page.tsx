@@ -8,7 +8,6 @@ import { LoginScreen } from "@/components/LoginScreen";
 import { DashboardShell } from "@/components/shell/DashboardShell";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversations } from "@/hooks/useConversations";
-import { newConversationId } from "@/lib/session";
 
 function HomeInner() {
   const { session, ready, loginAs, logout } = useAuth();
@@ -21,18 +20,27 @@ function HomeInner() {
     if (!ready || !session) return;
     if (session.role === "ADMINISTRATOR") {
       router.replace("/admin");
-      return;
     }
-    if (!conversationId) {
-      router.replace(`/?c=${newConversationId()}`);
-    }
-  }, [ready, session, conversationId, router]);
+  }, [ready, session, router]);
 
   function startNewChat() {
-    router.push(`/?c=${newConversationId()}`);
+    router.push("/");
   }
 
-  if (!ready || (session && session.role === "ADMINISTRATOR") || (session && !conversationId)) {
+  function handleLogout() {
+    logout();
+    router.replace("/");
+  }
+
+  // The URL only gains a ?c= once the first message of a conversation is
+  // actually sent (see ChatWindow's onConversationCreated) - not merely on
+  // login or when landing on "/", so we never expose an unused conversation
+  // id that nothing was ever sent to.
+  function handleConversationCreated(id: string) {
+    router.replace(`/?c=${id}`);
+  }
+
+  if (!ready || (session && session.role === "ADMINISTRATOR")) {
     return <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>;
   }
 
@@ -43,7 +51,7 @@ function HomeInner() {
   return (
     <DashboardShell
       session={session}
-      onLogout={logout}
+      onLogout={handleLogout}
       sidebarContent={
         <ChatSidebarContent
           conversations={conversations}
@@ -53,7 +61,12 @@ function HomeInner() {
         />
       }
     >
-      <ChatWindow session={session} conversationId={conversationId as string} onTurnComplete={refresh} />
+      <ChatWindow
+        session={session}
+        conversationId={conversationId}
+        onConversationCreated={handleConversationCreated}
+        onTurnComplete={refresh}
+      />
     </DashboardShell>
   );
 }

@@ -8,15 +8,17 @@ import { SuggestedQuestions } from "./SuggestedQuestions";
 
 interface Props {
   session: AuthSession;
-  conversationId: string;
+  conversationId: string | null;
+  onConversationCreated: (id: string) => void;
   onTurnComplete?: () => void;
 }
 
-export function ChatWindow({ session, conversationId, onTurnComplete }: Props) {
+export function ChatWindow({ session, conversationId, onConversationCreated, onTurnComplete }: Props) {
   const { messages, sendMessage, selectTransaction, selectRedemptionOrder, retry } = useChat(
     session,
     conversationId,
-    onTurnComplete
+    onTurnComplete,
+    onConversationCreated
   );
   const isBusy = messages.some((m) => m.status === "pending");
 
