@@ -8,13 +8,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import TRACKABLE_REDEMPTION_STATUSES, Transaction, TxnType, User, is_trackable_redemption
+from app.models import (
+    TRACKABLE_REDEMPTION_STATUSES,
+    RedemptionStatus,
+    Transaction,
+    TxnType,
+    User,
+    is_trackable_redemption,
+)
 from app.schemas.redemptions import RedemptionOrderOut
 from app.services.cache import get_redis
 
 logger = logging.getLogger(__name__)
 
 _NON_REDEMPTION_TYPES = (TxnType.BUY.value, TxnType.SELL.value, TxnType.RECURRING_BUY.value)
+_ALL_KNOWN_REDEMPTION_STATUSES = frozenset(s.value for s in RedemptionStatus)
 
 
 @dataclass
@@ -93,7 +101,30 @@ def _query_ongoing_redemptions(db: Session, user_id: uuid.UUID, limit: int) -> l
         .order_by(Transaction.created_at.desc())
         .limit(limit)
     )
-    return [TransactionRecord.from_model(t) for t in db.scalars(stmt)]
+    records = [TransactionRecord.from_model(t) for t in db.scalars(stmt)]
+
+    # Fail-closed exclusion (above) is silent by construction - a status this
+    # app's RedemptionStatus enum has never seen is just absent from the IN
+    # list, indistinguishable from a known-and-excluded one like DELIVERED.
+    # Flag genuinely unrecognized statuses separately so a human can review
+    # and map them, per the spec's "log/metric the status for review" rule.
+    unknown_statuses = db.scalars(
+        select(Transaction.status)
+        .where(
+            Transaction.user_id == user_id,
+            Transaction.type == TxnType.REDEMPTION,
+            Transaction.status.notin_(_ALL_KNOWN_REDEMPTION_STATUSES),
+        )
+        .distinct()
+    ).all()
+    for status in unknown_statuses:
+        logger.warning(
+            "Unrecognized redemption status %r for user %s excluded from ongoing orders; needs domain-mapping review",
+            status,
+            user_id,
+        )
+
+    return records
 
 
 def _get_ongoing_redemptions_cached(db: Session, user: User, limit: int) -> list[TransactionRecord]:

@@ -300,8 +300,8 @@ def test_row11_order_delivered_between_listing_and_track_click(
 
 
 # Row 12: an order with a status this app's enum doesn't recognize at all.
-# Confirms fail-closed exclusion AND checks whether anything is logged for
-# domain-mapping review (see gap report).
+# Confirms fail-closed exclusion AND that a warning is logged for
+# domain-mapping review.
 def test_row12_unknown_status_excluded_and_check_for_logging(
     client, make_user, make_redemption_order, auth_headers, db_session, caplog
 ):
@@ -318,9 +318,8 @@ def test_row12_unknown_status_excluded_and_check_for_logging(
     assert resp.status_code == 200
     assert resp.json() == []  # fails closed - not shown as active
 
-    # Gap check: is there any log record at all mentioning the unrecognized
-    # status, for a human to review and map it into the known enum? This is
-    # expected to FAIL today - see the gap report.
+    # A log record must mention the unrecognized status, so a human can
+    # review and map it into the known enum.
     mentions_unknown_status = any("SOME_NEW_COURIER_STATE" in r.message for r in caplog.records)
     assert mentions_unknown_status, (
         "no log/metric is emitted anywhere for an unrecognized redemption status - "
