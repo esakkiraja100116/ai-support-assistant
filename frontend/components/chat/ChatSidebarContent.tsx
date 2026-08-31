@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { ConversationSummary } from "@/lib/types";
 
 interface Props {
@@ -11,11 +10,16 @@ interface Props {
   loading: boolean;
   activeConversationId: string | null;
   onNewChat: () => void;
+  onSelectConversation: (id: string) => void;
 }
 
-export function ChatSidebarContent({ conversations, loading, activeConversationId, onNewChat }: Props) {
-  const router = useRouter();
-
+export function ChatSidebarContent({
+  conversations,
+  loading,
+  activeConversationId,
+  onNewChat,
+  onSelectConversation,
+}: Props) {
   return (
     <div className="flex h-full flex-col gap-3 p-3.5">
       <Button variant="outline" className="justify-start" onClick={onNewChat}>
@@ -33,14 +37,14 @@ export function ChatSidebarContent({ conversations, loading, activeConversationI
               "flex flex-col gap-0.5 rounded-md px-2.5 py-2 text-left hover:bg-accent",
               c.id === activeConversationId && "bg-accent"
             )}
-            onClick={() => router.push(`/?c=${c.id}`)}
+            onClick={() => onSelectConversation(c.id)}
           >
             <span className="truncate text-sm text-foreground">{c.title}</span>
             <span className="text-xs text-muted-foreground">{c.message_count} messages</span>
           </button>
         ))}
       </div>
-      <Link href="/faq" className="text-center text-xs text-primary hover:underline">
+      <Link href="/faq" prefetch={false} className="text-center text-xs text-primary hover:underline">
         Browse the knowledge base
       </Link>
     </div>
