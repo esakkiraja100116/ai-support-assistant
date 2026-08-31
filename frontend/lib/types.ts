@@ -61,6 +61,7 @@ export interface TrackingEvent {
 export interface RedemptionTracking {
   order_ref: string;
   product_name: string;
+  quantity: number;
   status: string;
   awb_available: boolean;
   current_location: string | null;
@@ -77,9 +78,14 @@ export interface RedemptionTrackingData {
   tracking: RedemptionTracking;
 }
 
+export interface OrderCard {
+  kind: "transaction" | "redemption";
+  transaction: TransactionSummary | null;
+  redemption: RedemptionOrderSummary | null;
+}
+
 export interface OrdersOverviewData {
-  transactions: TransactionSummary[];
-  redemption_orders: RedemptionOrderSummary[];
+  orders: OrderCard[];
 }
 
 export interface EscalateData {

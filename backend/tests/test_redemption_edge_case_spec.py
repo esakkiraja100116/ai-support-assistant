@@ -7,8 +7,8 @@ docstring on those tests and the accompanying gap report.
 import httpx
 import pytest
 
-from app.models import RedemptionOrder
-from app.services import redemption_service, tracking_service
+from app.models import Transaction
+from app.services import transaction_service, tracking_service
 
 
 class _FakeFunction:
@@ -62,8 +62,8 @@ def test_row2_only_delivered_order_returns_no_ongoing_orders_message(
     make_redemption_order(alice, "txn_delivered", status="DELIVERED", awb_number="PRO_DELIVERED")
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
@@ -90,8 +90,8 @@ def test_row3_only_failed_cancelled_rejected_orders_return_no_ongoing_orders_mes
     make_redemption_order(alice, "txn_rejected", status="REJECTED", awb_number=None)
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
@@ -123,11 +123,11 @@ def test_row5_resolve_cannot_be_tricked_into_another_users_real_order(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_ongoing_redemptions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
-        if "resolve_redemption_order" in names:
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
+        if "resolve_redemption_orders" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("resolve_redemption_order", f'{{"order_ref": "{bobs_order.id}"}}')]
+                tool_calls=[_FakeToolCall("resolve_redemption_orders", f'{{"order_refs": ["{bobs_order.id}"]}}')]
             )
         return _FakeMessage(content="")
 
@@ -155,7 +155,7 @@ def test_row6_awb_lookup_never_reveals_another_users_order(
     bob = make_user("bob", "Bob")
     bobs_order = make_redemption_order(bob, "txn_bob2", status="IN_TRANSIT", awb_number="PRO_BOB_2")
 
-    result = redemption_service.get_ongoing_redemption_by_ref(db_session, alice, str(bobs_order.id))
+    result = transaction_service.get_ongoing_transaction_by_ref(db_session, alice, str(bobs_order.id))
 
     assert result is None
 
@@ -171,8 +171,8 @@ def test_row7_404_from_tracking_api_does_not_leak_raw_upstream_error(
     make_redemption_order(alice, "txn_404", status="IN_TRANSIT", awb_number="PRO_404")
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
@@ -209,8 +209,8 @@ def test_row8_stale_cache_used_and_flagged_when_upstream_fails(
     tracking_service.get_tracking("PRO_STALE")  # populate primary + stale cache
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
@@ -244,8 +244,8 @@ def test_row9_malformed_upstream_response_gives_customer_generic_answer_not_500(
     make_redemption_order(alice, "txn_malformed", status="IN_TRANSIT", awb_number="PRO_MALFORMED_2")
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
@@ -271,7 +271,7 @@ def test_row11_order_delivered_between_listing_and_track_click(
     # Simulate the status changing (e.g. courier webhook) after the order was
     # already shown to the customer as "ongoing".
     db_session.execute(
-        RedemptionOrder.__table__.update().where(RedemptionOrder.id == order.id).values(txn_status="DELIVERED")
+        Transaction.__table__.update().where(Transaction.id == order.id).values(status="DELIVERED")
     )
     db_session.commit()
 
@@ -289,7 +289,7 @@ def test_row12_unknown_status_excluded_and_check_for_logging(
     alice = make_user("alice", "Alice")
     order = make_redemption_order(alice, "txn_unknown_status", status="IN_TRANSIT", awb_number="PRO_UNKNOWN")
     db_session.execute(
-        RedemptionOrder.__table__.update().where(RedemptionOrder.id == order.id).values(txn_status="SOME_NEW_COURIER_STATE")
+        Transaction.__table__.update().where(Transaction.id == order.id).values(status="SOME_NEW_COURIER_STATE")
     )
     db_session.commit()
 

@@ -2,7 +2,7 @@
 
 Exists specifically to bound abusive repeated tracking requests without
 punishing legitimate use: a customer re-checking the same order a few times
-is cheap regardless (get_tracking()/get_ongoing_redemptions() are already
+is cheap regardless (get_tracking()/get_transactions() are already
 cache-first, so a legitimate retry rarely even reaches the DB or upstream
 API) - this only needs to catch raw request-*volume* abuse at the action
 boundary itself, independent of whether any given request would have been a

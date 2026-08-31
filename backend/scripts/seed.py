@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import select, text  # noqa: E402
 
 from app.db import SessionLocal  # noqa: E402
-from app.models import RedemptionOrder, SupportArticle, Transaction, User  # noqa: E402
+from app.models import SupportArticle, Transaction, User  # noqa: E402
 from app.services import llm_client  # noqa: E402
 
 USERS = [
@@ -66,18 +66,23 @@ TXN_TEMPLATES = [
 # order") has real ongoing orders to resolve/track against - 4 ongoing
 # (one per fixture AWB, plus one with no AWB yet) + 1 already-delivered
 # (excluded from active discovery, per the spec's own note - reachable only
-# via a direct tracking_service call, not through chat).
+# via a direct tracking_service call, not through chat). Each is now a
+# Transaction row with type=REDEMPTION, linked via related_transaction_id to
+# the one SUCCESS-status BUY transaction below - a redemption only ever
+# happens because gold was actually bought first, so this is now a real,
+# meaningful relationship rather than the free-text label the old
+# RedemptionOrder.txn_id was.
 REDEMPTION_TEMPLATES = [
-    {"txn_id": "j54Po7qTYi", "product_name": "Aura Gold Bar", "product_type": "bar", "metal_type": "gold",
-     "quantity_purchased": 5.0, "txn_status": "DELIVERED", "awb_number": "PRO19460771"},
-    {"txn_id": "rTx2n8LmQe", "product_name": "Aura Gold Coin", "product_type": "coin", "metal_type": "gold",
-     "quantity_purchased": 2.0, "txn_status": "IN_TRANSIT", "awb_number": "PRO19460772"},
-    {"txn_id": "kP9wZ3vBdA", "product_name": "Aura Gold Bar", "product_type": "bar", "metal_type": "gold",
-     "quantity_purchased": 1.0, "txn_status": "OUT_FOR_DELIVERY", "awb_number": "PRO19460773"},
-    {"txn_id": "mN4qX7cRfG", "product_name": "Aura Gold Coin", "product_type": "coin", "metal_type": "gold",
-     "quantity_purchased": 3.0, "txn_status": "ATTEMPTED", "awb_number": "PRO19460774"},
-    {"txn_id": "hJ6sY1oPtL", "product_name": "Aura Gold Bar", "product_type": "bar", "metal_type": "gold",
-     "quantity_purchased": 10.0, "txn_status": "PROCESSING", "awb_number": None},
+    {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
+     "quantity": 5.0, "status": "DELIVERED", "awb_number": "PRO19460771"},
+    {"product": "Gold Coin", "product_type": "coin", "metal_type": "gold",
+     "quantity": 2.0, "status": "IN_TRANSIT", "awb_number": "PRO19460772"},
+    {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
+     "quantity": 1.0, "status": "OUT_FOR_DELIVERY", "awb_number": "PRO19460773"},
+    {"product": "Gold Coin", "product_type": "coin", "metal_type": "gold",
+     "quantity": 3.0, "status": "ATTEMPTED", "awb_number": "PRO19460774"},
+    {"product": "Gold Bar", "product_type": "bar", "metal_type": "gold",
+     "quantity": 10.0, "status": "PROCESSING", "awb_number": None},
 ]
 
 
@@ -86,10 +91,10 @@ def seed() -> None:
     try:
         # Only synthetic demo data is reset here - never messages/conversations
         # (real usage history) or users (would orphan/cascade-delete that
-        # history via the conversations.user_id foreign key). Neither
-        # transactions nor redemption_orders is referenced by any other
-        # table, so truncating them can't cascade into anything else.
-        db.execute(text("TRUNCATE TABLE redemption_orders, transactions, support_articles RESTART IDENTITY CASCADE"))
+        # history via the conversations.user_id foreign key). transactions
+        # isn't referenced by any other table, so truncating it can't cascade
+        # into anything else.
+        db.execute(text("TRUNCATE TABLE transactions, support_articles RESTART IDENTITY CASCADE"))
         db.commit()
 
         users = {}
@@ -106,14 +111,16 @@ def seed() -> None:
 
         txn_seq = 1001
         now = datetime.now(timezone.utc)
+        alices_successful_buy_id: str | None = None
         for username, user in users.items():
             if user.role == "ADMINISTRATOR":
                 continue
             for i, tpl in enumerate(TXN_TEMPLATES):
                 created = now - timedelta(days=len(TXN_TEMPLATES) - i)
+                txn_id = f"txn_{txn_seq}"
                 db.add(
                     Transaction(
-                        id=f"txn_{txn_seq}",
+                        id=txn_id,
                         user_id=user.id,
                         type=tpl["type"],
                         product=tpl["product"],
@@ -125,6 +132,8 @@ def seed() -> None:
                         updated_at=created,
                     )
                 )
+                if username == "alice" and tpl["type"] == "BUY" and tpl["status"] == "SUCCESS":
+                    alices_successful_buy_id = txn_id
                 txn_seq += 1
 
         alice = users.get("alice")
@@ -132,15 +141,20 @@ def seed() -> None:
             for i, tpl in enumerate(REDEMPTION_TEMPLATES):
                 created = now - timedelta(days=len(REDEMPTION_TEMPLATES) - i)
                 db.add(
-                    RedemptionOrder(
-                        txn_id=tpl["txn_id"],
+                    Transaction(
+                        id=f"rdm_{i + 1:04d}",
                         user_id=alice.id,
-                        product_name=tpl["product_name"],
+                        type="REDEMPTION",
+                        product=tpl["product"],
+                        amount=None,
+                        status=tpl["status"],
+                        failure_reason=None,
+                        payment_method=None,
+                        awb_number=tpl["awb_number"],
                         product_type=tpl["product_type"],
                         metal_type=tpl["metal_type"],
-                        quantity_purchased=tpl["quantity_purchased"],
-                        txn_status=tpl["txn_status"],
-                        awb_number=tpl["awb_number"],
+                        quantity=tpl["quantity"],
+                        related_transaction_id=alices_successful_buy_id,
                         created_at=created,
                         updated_at=created,
                     )

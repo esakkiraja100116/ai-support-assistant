@@ -1,9 +1,9 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel
 
 from app.schemas.redemptions import RedemptionOrderOut
-from app.schemas.transactions import TransactionDetailOut
 
 
 class AdminUserOut(BaseModel):
@@ -16,7 +16,24 @@ class AdminUserOut(BaseModel):
     conversation_count: int
 
 
-class AdminTransactionOut(TransactionDetailOut):
+class AdminTransactionOut(BaseModel):
+    # A standalone model (not extending TransactionDetailOut) because this
+    # view spans every type including REDEMPTION, whose amount/payment_method
+    # don't apply and whose awb/product_type/metal_type/quantity fields
+    # TransactionDetailOut doesn't have at all.
+    id: str
+    type: str
+    product: str
+    amount: float | None = None
+    status: str
+    failure_reason: str | None = None
+    payment_method: str | None = None
+    awb_number: str | None = None
+    product_type: str | None = None
+    metal_type: str | None = None
+    quantity: float | None = None
+    created_at: datetime
+    updated_at: datetime
     user_id: uuid.UUID
     username: str
     display_name: str

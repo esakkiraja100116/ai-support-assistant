@@ -45,11 +45,11 @@ def test_chat_auto_selects_single_ongoing_order(client, make_user, make_redempti
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_ongoing_redemptions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
-        if "resolve_redemption_order" in names:
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
+        if "resolve_redemption_orders" in names:
             raise AssertionError("resolve call should never happen for a single ongoing order")
-        return _FakeMessage(content="Your Aura Gold Coin order is currently in transit.")
+        return _FakeMessage(content="Your Gold Coin order is currently in transit.")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
     monkeypatch.setattr("app.services.orchestrator.tracking_service.get_tracking", lambda awb: _fake_tracking_lookup())
@@ -71,9 +71,9 @@ def test_chat_shows_selection_list_for_multiple_ongoing_orders(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_ongoing_redemptions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
-        if "resolve_redemption_order" in names:
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
+        if "resolve_redemption_orders" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("no_single_redemption_match")])
         return _FakeMessage(content="")
 
@@ -96,18 +96,18 @@ def test_chat_resolves_specific_order_from_selection(
     client, make_user, make_redemption_order, auth_headers, monkeypatch
 ):
     alice = make_user("alice", "Alice")
-    make_redemption_order(alice, "txn_bar", status="IN_TRANSIT", product_name="Aura Gold Bar", awb_number="PRO_BAR")
-    coin = make_redemption_order(alice, "txn_coin", status="OUT_FOR_DELIVERY", product_name="Aura Gold Coin", awb_number="PRO_COIN")
+    make_redemption_order(alice, "txn_bar", status="IN_TRANSIT", product_name="Gold Bar", awb_number="PRO_BAR")
+    coin = make_redemption_order(alice, "txn_coin", status="OUT_FOR_DELIVERY", product_name="Gold Coin", awb_number="PRO_COIN")
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_ongoing_redemptions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
-        if "resolve_redemption_order" in names:
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
+        if "resolve_redemption_orders" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("resolve_redemption_order", f'{{"order_ref": "{coin.id}"}}')]
+                tool_calls=[_FakeToolCall("resolve_redemption_orders", f'{{"order_refs": ["{coin.id}"]}}')]
             )
-        return _FakeMessage(content="Your Aura Gold Coin order is out for delivery.")
+        return _FakeMessage(content="Your Gold Coin order is out for delivery.")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
     monkeypatch.setattr("app.services.orchestrator.tracking_service.get_tracking", lambda awb: _fake_tracking_lookup())
@@ -132,11 +132,11 @@ def test_chat_falls_back_to_selection_if_resolved_ref_not_in_users_list(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_ongoing_redemptions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
-        if "resolve_redemption_order" in names:
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
+        if "resolve_redemption_orders" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("resolve_redemption_order", '{"order_ref": "not-a-real-uuid"}')]
+                tool_calls=[_FakeToolCall("resolve_redemption_orders", '{"order_refs": ["not-a-real-uuid"]}')]
             )
         return _FakeMessage(content="")
 
@@ -158,8 +158,8 @@ def test_chat_no_ongoing_orders_returns_fixed_message_with_zero_tracking_calls(
     alice = make_user("alice", "Alice")
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)
@@ -176,11 +176,11 @@ def test_chat_no_ongoing_orders_returns_fixed_message_with_zero_tracking_calls(
     assert "don't have any ongoing redemption orders" in body["message"]
 
 
-def test_chat_dedupes_duplicate_get_ongoing_redemptions_tool_calls(
+def test_chat_dedupes_duplicate_get_orders_tool_calls(
     client, make_user, make_redemption_order, auth_headers, monkeypatch
 ):
     """Regression test for the same class of bug already hit and fixed once
-    for search_knowledge_base: if the router issues get_ongoing_redemptions
+    for search_knowledge_base: if the router issues get_orders
     twice in one response, it must be deduped to a single call - otherwise
     the redemption-tracking handler would run twice and its message would be
     duplicated in the merged response."""
@@ -191,10 +191,10 @@ def test_chat_dedupes_duplicate_get_ongoing_redemptions_tool_calls(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_ongoing_redemptions" in names:
+        if "get_orders" in names:
             call_count["redemptions"] += 1
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("get_ongoing_redemptions"), _FakeToolCall("get_ongoing_redemptions")]
+                tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}'), _FakeToolCall("get_orders", '{"type": "REDEMPTION"}')]
             )
         return _FakeMessage(content="Your order is currently in transit.")
 
@@ -216,8 +216,8 @@ def test_chat_null_awb_order_says_not_available_without_calling_tracking_api(
     make_redemption_order(alice, "txn_processing", status="PROCESSING", awb_number=None)
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_ongoing_redemptions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_ongoing_redemptions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "REDEMPTION"}')])
         return _FakeMessage(content="")
 
     monkeypatch.setattr("app.services.orchestrator.llm_client.chat_completion", fake_chat_completion)

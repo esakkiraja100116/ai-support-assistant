@@ -17,6 +17,7 @@ class TxnType(str, enum.Enum):
     BUY = "BUY"
     SELL = "SELL"
     RECURRING_BUY = "RECURRING_BUY"
+    REDEMPTION = "REDEMPTION"
 
 
 class TxnStatus(str, enum.Enum):
@@ -87,42 +88,45 @@ class User(Base):
 
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="user")
     conversations: Mapped[list["Conversation"]] = relationship(back_populates="user")
-    redemption_orders: Mapped[list["RedemptionOrder"]] = relationship(back_populates="user")
 
 
 class Transaction(Base):
+    """A BUY/SELL/RECURRING_BUY trading transaction, or a REDEMPTION (physical
+    gold delivery order). `status`'s valid-value set depends on `type`:
+    TxnStatus for the trading types, RedemptionStatus for REDEMPTION - both
+    were always just Python-side hints over a plain VARCHAR column, not a DB
+    enum, so this dual vocabulary is continuity, not a new looseness.
+
+    `amount`/`payment_method` are nullable because neither applies to a
+    REDEMPTION row (the money already moved at BUY time; redemption is a
+    physical delivery action, not a new payment) - forcing a synthetic value
+    there would be exactly the kind of not-meaningful data this model design
+    avoids. `awb_number`/`product_type`/`metal_type`/`quantity` are nullable
+    because they only apply to REDEMPTION rows. `related_transaction_id`
+    links a REDEMPTION row back to the BUY it redeems - nullable because
+    legacy/backfilled rows may not have one on file."""
+
     __tablename__ = "transactions"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     type: Mapped[TxnType] = mapped_column(String(32))
-    product: Mapped[str] = mapped_column(String(32))
-    amount: Mapped[float] = mapped_column(Numeric(12, 2))
-    status: Mapped[TxnStatus] = mapped_column(String(16))
+    product: Mapped[str] = mapped_column(String(64))
+    amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    status: Mapped[str] = mapped_column(String(32))
     failure_reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    payment_method: Mapped[str] = mapped_column(String(64))
+    payment_method: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    awb_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    product_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    metal_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    quantity: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    related_transaction_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("transactions.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
 
     user: Mapped["User"] = relationship(back_populates="transactions")
-
-
-class RedemptionOrder(Base):
-    __tablename__ = "redemption_orders"
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    txn_id: Mapped[str] = mapped_column(String(32), unique=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
-    product_name: Mapped[str] = mapped_column(String(128))
-    product_type: Mapped[str] = mapped_column(String(32))
-    metal_type: Mapped[str] = mapped_column(String(32))
-    quantity_purchased: Mapped[float] = mapped_column(Numeric(12, 4))
-    txn_status: Mapped[RedemptionStatus] = mapped_column(String(32))
-    awb_number: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
-
-    user: Mapped["User"] = relationship(back_populates="redemption_orders")
 
 
 class SupportArticle(Base):

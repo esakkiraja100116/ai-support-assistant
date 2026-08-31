@@ -25,7 +25,9 @@ export function RedemptionTrackingDetail({ data, message }: Props) {
           <dt className="text-muted-foreground">Order</dt>
           <dd className="truncate font-medium">{t.order_ref}</dd>
           <dt className="text-muted-foreground">Product</dt>
-          <dd className="font-medium">{t.product_name}</dd>
+          <dd className="font-medium">
+            {t.product_name} ({t.quantity}g)
+          </dd>
           <dt className="text-muted-foreground">Status</dt>
           <dd className="font-medium">{t.status}</dd>
           {t.current_location && (

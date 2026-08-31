@@ -38,7 +38,7 @@ def test_track_endpoint_returns_429_after_exceeding_limit(
 ):
     alice = make_user("alice", "Alice")
     order = make_redemption_order(alice, "txn_rate", status="PROCESSING", awb_number=None)
-    monkeypatch.setattr("app.routers.redemptions.settings.redemption_track_rate_limit", 2)
+    monkeypatch.setattr("app.routers.transactions.settings.redemption_track_rate_limit", 2)
 
     for _ in range(2):
         resp = client.post(f"/redemptions/{order.id}/track", headers=auth_headers(alice))

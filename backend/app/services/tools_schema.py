@@ -1,9 +1,9 @@
 """OpenAI tool/function schemas exposed to the chat model.
 
-Deliberately, `get_recent_transactions` and `get_ongoing_redemptions` take no
-user-identifying parameter. The authenticated user is always bound
-server-side from the JWT, so the model can never supply, guess, or be
-prompt-injected into supplying a user id for either tool.
+Deliberately, `get_orders` takes no user-identifying parameter (only an
+optional `type`). The authenticated user is always bound server-side from
+the JWT, so the model can never supply, guess, or be prompt-injected into
+supplying a user id.
 """
 
 SEARCH_KNOWLEDGE_BASE = {
@@ -29,11 +29,9 @@ RESPOND_DIRECTLY = {
             "Do NOT call this for any question about the platform's products, policies, fees, "
             "pricing, or how-to topics - even if phrased casually or referencing general market "
             "pricing/timing - those must go through search_knowledge_base instead. Do NOT call "
-            "this for any question about the customer's own transactions or orders, including "
-            "counts/aggregates over them (e.g. 'how many succeeded') - those must go through "
-            "get_recent_transactions instead. Do NOT call this for a question about shipment/"
-            "delivery tracking of a physical redemption order (e.g. 'where is my order', 'track "
-            "my gold coin') - those must go through get_ongoing_redemptions instead."
+            "this for any question about the customer's own orders - transactions, purchases, "
+            "sales, or physical delivery/shipment tracking, including counts/aggregates over "
+            "them (e.g. 'how many succeeded') - those must go through get_orders instead."
         ),
         "parameters": {
             "type": "object",
@@ -62,7 +60,7 @@ REQUEST_HUMAN_AGENT = {
             "tool applies, or because a question is ambiguous or references something unclear "
             "('that', 'it', 'the status') - uncertainty is not a request for a human. In that "
             "case, use the conversation history to resolve what they're referring to and call "
-            "search_knowledge_base or get_recent_transactions instead, whichever fits."
+            "search_knowledge_base or get_orders instead, whichever fits."
         ),
         "parameters": {
             "type": "object",
@@ -76,7 +74,7 @@ REQUEST_HUMAN_AGENT = {
                         "or similar. If neither genuinely applies - you're just unsure what they mean, "
                         "or a reference is ambiguous - do NOT call this tool: resolve the ambiguity from "
                         "conversation history instead and call search_knowledge_base or "
-                        "get_recent_transactions, whichever fits."
+                        "get_orders, whichever fits."
                     ),
                 },
             },
@@ -85,60 +83,96 @@ REQUEST_HUMAN_AGENT = {
     },
 }
 
-GET_RECENT_TRANSACTIONS = {
+GET_ORDERS = {
     "type": "function",
     "function": {
-        "name": "get_recent_transactions",
+        "name": "get_orders",
         "description": (
-            "Fetch a list of the authenticated customer's own recent BUY/SELL/RECURRING_BUY "
-            "transaction records (each with a status, amount, and date). Use this only when "
-            "the customer is asking about specific past orders or activity, e.g. 'show my "
-            "recent transactions', 'why did my purchase fail', 'what happened to my last order'. "
+            "Fetch the authenticated customer's own orders - transactions and/or physical "
+            "gold redemption/delivery orders. Pass `type` to scope the fetch, or omit it for "
+            "a generic 'list/show my orders' request naming no specific kind (returns "
+            "everything together).\n\n"
+            "Pass type=REDEMPTION for ANY shipment/delivery/tracking-shaped question - e.g. "
+            "'where is my order', 'track my gold coin', 'I want to see my delivery status', "
+            "'has my redemption shipped?', 'what is my AWB status'. These are always about "
+            "physical delivery tracking, NEVER generic transaction browsing, even though they "
+            "say 'order'. This also includes a short follow-up naming no order explicitly but "
+            "clearly continuing the delivery/redemption order just discussed earlier in this "
+            "conversation - e.g. 'how much gram is it', 'how many grams', 'what's the quantity' "
+            "right after a redemption order was mentioned. Never send a follow-up like that to "
+            "search_knowledge_base just because it doesn't say 'order' or 'delivery' itself - "
+            "use the conversation history to see what it's continuing.\n\n"
+            "Pass type=BUY, type=SELL, or type=RECURRING_BUY when the customer names that "
+            "specific kind of activity (e.g. 'my purchases', 'my sells', 'my recurring buys'). "
+            "Pass type=TRANSACTION for a general transaction/purchase/order question that does "
+            "NOT name buy/sell/recurring specifically and has no delivery/shipment language - "
+            "e.g. 'my last transaction', 'my transaction status', 'why did my last order fail', "
+            "'what happened to my purchase'. This covers all trading activity but never "
+            "physical delivery orders - a 'transaction' question is never about redemption, so "
+            "never omit type entirely just because buy/sell/recurring wasn't specified.\n\n"
             "Do NOT use this for questions about current total holdings, portfolio value, or "
-            "account balance - this tool has no such data, it only returns a transaction history list."
+            "account balance - this tool has no such data, it only returns order history."
         ),
-        "parameters": {"type": "object", "properties": {}},
-    },
-}
-
-GET_ONGOING_REDEMPTIONS = {
-    "type": "function",
-    "function": {
-        "name": "get_ongoing_redemptions",
-        "description": (
-            "Fetch the authenticated customer's own ongoing (not yet delivered, not "
-            "failed/cancelled) physical gold redemption/delivery orders - coins or bars being "
-            "shipped to them. Use this for shipment/delivery tracking questions like 'where is "
-            "my order', 'track my gold coin', 'has my bar shipped yet', 'what is my AWB status'. "
-            "This is separate from get_recent_transactions, which covers BUY/SELL/RECURRING_BUY "
-            "activity, not physical delivery/shipment status. "
-            "For a generic 'list/show my orders' request naming no specific type, also call "
-            "get_recent_transactions in the same turn. Do NOT do this if the customer restricts "
-            "the request to one type - words like 'only'/'just' (e.g. 'list only my redemption/"
-            "delivery orders') mean call get_ongoing_redemptions alone."
-        ),
-        "parameters": {"type": "object", "properties": {}},
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": ["BUY", "SELL", "RECURRING_BUY", "TRANSACTION", "REDEMPTION"],
+                    "description": (
+                        "Omit entirely ONLY for a truly generic 'list/show ALL my orders' with no "
+                        "'transaction'/'purchase'/'order' activity language pointing at trading "
+                        "specifically - that omitted case returns transactions AND redemptions "
+                        "together. Any question mentioning transactions/purchases/sales/orders in "
+                        "the trading sense must pass a type (TRANSACTION if no specific "
+                        "BUY/SELL/RECURRING_BUY is named) - never guess between BUY/SELL/"
+                        "RECURRING_BUY. Words like 'only'/'just' restricting the request to one "
+                        "kind (e.g. 'list only my redemption orders') mean pass that one type."
+                    ),
+                },
+                "list_all": {
+                    "type": "boolean",
+                    "description": (
+                        "Set true when the customer explicitly asks to see ALL of their orders/"
+                        "transactions (e.g. 'list all my orders', 'show me everything'), AND for "
+                        "any question that needs to consider every matching order to answer "
+                        "correctly - a count, total, or 'how many'/'which of my orders' question "
+                        "(e.g. 'how many coins are yet to be delivered', 'how many transactions "
+                        "failed', 'which orders were attempted') always needs the full set, not "
+                        "just the most recent few, or the count/answer could be wrong by silently "
+                        "missing an older matching one. Leave false/omit only for a question about "
+                        "one specific/recent/latest item, where the most recent few are enough."
+                    ),
+                },
+            },
+        },
     },
 }
 
 RESOLVE_REDEMPTION_ORDER = {
     "type": "function",
     "function": {
-        "name": "resolve_redemption_order",
+        "name": "resolve_redemption_orders",
         "description": (
-            "Call this once you can tell, from the customer's message, which single ongoing "
-            "redemption order they mean, from the list you were given. Only call this when "
-            "confident - do not guess."
+            "Call this once you can tell, from the customer's message, which ongoing redemption "
+            "order(s) - one or more - they mean, from the list you were given. Works for a "
+            "single order ('track my gold coin that's out for delivery') or several/all matching "
+            "ones ('how many coins are yet to be delivered', 'which of my orders were attempted', "
+            "'total bars still in progress'). For a question asking to count/aggregate/list "
+            "multiple orders by product or status, resolve ALL of them - the app answers the "
+            "aggregate question directly, it does not need you to pick just one. "
+            "Only call this when you are confident about which order(s) match - do not guess."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "order_ref": {
-                    "type": "string",
-                    "description": "order_ref of the matching order, from the provided list.",
+                "order_refs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "order_refs of the matching order(s), from the provided list.",
                 },
             },
-            "required": ["order_ref"],
+            "required": ["order_refs"],
         },
     },
 }
@@ -288,8 +322,7 @@ INSUFFICIENT_KB_INFO = {
 
 ALL_TOOLS = [
     SEARCH_KNOWLEDGE_BASE,
-    GET_RECENT_TRANSACTIONS,
-    GET_ONGOING_REDEMPTIONS,
+    GET_ORDERS,
     REQUEST_HUMAN_AGENT,
     RESPOND_DIRECTLY,
 ]
@@ -334,8 +367,7 @@ ANSWER_FROM_KB_JUDGE = {
 
 ALL_TOOLS_STREAM = [
     SEARCH_KNOWLEDGE_BASE,
-    GET_RECENT_TRANSACTIONS,
-    GET_ONGOING_REDEMPTIONS,
+    GET_ORDERS,
     REQUEST_HUMAN_AGENT,
     RESPOND_DIRECTLY_ROUTE,
 ]

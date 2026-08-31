@@ -12,8 +12,10 @@ import { EscalateCard } from "./EscalateCard";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { MarkdownText } from "./MarkdownText";
+import { RedemptionOrderCard } from "./RedemptionOrderCard";
 import { RedemptionOrderSelector } from "./RedemptionOrderSelector";
 import { RedemptionTrackingDetail } from "./RedemptionTrackingDetail";
+import { TransactionCard } from "./TransactionCard";
 import { TransactionDetail } from "./TransactionDetail";
 import { TransactionSelector } from "./TransactionSelector";
 import { TransactionsSummary } from "./TransactionsSummary";
@@ -122,21 +124,19 @@ export function MessageBubble({ message, onSelectTransaction, onSelectRedemption
         <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
           <MarkdownText text={response.message} />
         </div>
-        {data.transactions.length > 0 && (
-          <div className="flex w-full flex-col gap-2">
-            <div className="text-xs font-semibold text-muted-foreground">Transactions</div>
-            <TransactionSelector data={{ transactions: data.transactions }} onSelect={onSelectTransaction} />
-          </div>
-        )}
-        {data.redemption_orders.length > 0 && (
-          <div className="flex w-full flex-col gap-2">
-            <div className="text-xs font-semibold text-muted-foreground">Redemption orders</div>
-            <RedemptionOrderSelector
-              data={{ orders: data.redemption_orders }}
-              onSelect={onSelectRedemptionOrder}
-            />
-          </div>
-        )}
+        <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {data.orders.map((card) =>
+            card.kind === "transaction" && card.transaction ? (
+              <TransactionCard key={card.transaction.id} transaction={card.transaction} onSelect={onSelectTransaction} />
+            ) : card.redemption ? (
+              <RedemptionOrderCard
+                key={card.redemption.order_ref}
+                order={card.redemption}
+                onSelect={onSelectRedemptionOrder}
+              />
+            ) : null
+          )}
+        </div>
       </div>
     );
   }

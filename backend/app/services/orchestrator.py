@@ -5,12 +5,12 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import Transaction, User
-from app.schemas.chat import ChatMessage, ChatResponse, ChatResponseType
-from app.schemas.redemptions import RedemptionOrderOut, RedemptionTrackingOut
+from app.models import Transaction, TxnType, User
+from app.schemas.chat import ChatMessage, ChatResponse, ChatResponseType, OrderCardOut
+from app.schemas.redemptions import RedemptionTrackingOut
 from app.schemas.transactions import TransactionOut
-from app.services import kb_service, llm_client, pii, prompts, rate_limit, redemption_service, session_log, tracing, tracking_service, transaction_service
-from app.services.redemption_service import RedemptionOrderRecord
+from app.services import kb_service, llm_client, pii, prompts, rate_limit, session_log, tracing, tracking_service, transaction_service
+from app.services.transaction_service import TransactionRecord
 from app.services.turn_metrics import TurnMetrics
 from app.services.tools_schema import (
     ALL_TOOLS,
@@ -118,7 +118,7 @@ def _route_intent(
     tool_choice="required" (over ALL_TOOLS, which includes respond_directly
     for genuine small talk/capability gaps) rather than "auto" - removing the
     free-form-answer escape hatch entirely, the same defensive pattern
-    _handle_knowledge_base/_handle_recent_transactions already use. Measured
+    _handle_knowledge_base/_handle_transactions_of_type already use. Measured
     via scripts/eval_routing_model.py: this alone fixed 4/5 known routing
     misses with gpt-4o-mini, where "auto" fixed 0/5."""
     system_prompt = prompts.render("system_prompt.j2", display_name=user.display_name)
@@ -192,12 +192,12 @@ def _chat_turn(
         if tool_name == "search_knowledge_base":
             with tracing.tracer.start_as_current_span("kb_search_and_judge"):
                 responses.append(_handle_knowledge_base(db, user, message, judgment_model, judgment_reasoning_effort))
-        elif tool_name == "get_recent_transactions":
-            with tracing.tracer.start_as_current_span("transaction_lookup_and_resolve"):
-                responses.append(_handle_recent_transactions(db, user, message, history))
-        elif tool_name == "get_ongoing_redemptions":
-            with tracing.tracer.start_as_current_span("redemption_lookup_and_resolve"):
-                responses.append(_handle_redemption_tracking(db, user, message, history))
+        elif tool_name == "get_orders":
+            args = json.loads(call.function.arguments or "{}")
+            with tracing.tracer.start_as_current_span("orders_lookup_and_resolve"):
+                responses.append(
+                    _handle_orders(db, user, message, history, args.get("type"), bool(args.get("list_all")))
+                )
         elif tool_name == "respond_directly":
             args = json.loads(call.function.arguments or "{}")
             responses.append(ChatResponse.text_answer(args.get("reply") or "How can I help you today?", grounded=True))
@@ -209,21 +209,20 @@ def _chat_turn(
 
 
 def _dedupe_real_tool_calls(tool_calls) -> list:
-    """Filters to search_knowledge_base/get_recent_transactions/
-    get_ongoing_redemptions calls, keeping only the FIRST occurrence of each
-    distinct tool name. All three tools take no arguments (each always
-    fetches/searches the same thing for a given turn), so the model calling
-    the same one twice is always redundant - and, for KB specifically,
-    running it twice independently produces two full, overlapping answers
-    that _merge_responses would then concatenate, duplicating everything
-    rather than combining two distinct topics. get_ongoing_redemptions is
-    included here for the same reason - without it, a duplicated call would
-    reproduce this exact class of bug for redemption tracking."""
+    """Filters to search_knowledge_base/get_orders calls, keeping only the
+    FIRST occurrence of each distinct tool name. Both tools always
+    fetch/search the same thing for a given turn (get_orders' single `type`
+    argument doesn't change that - a duplicate call with a different type
+    would just be the model second-guessing itself, not a genuine second
+    need), so the model calling the same one twice is always redundant -
+    and, for KB specifically, running it twice independently produces two
+    full, overlapping answers that _merge_responses would then concatenate,
+    duplicating everything rather than combining two distinct topics."""
     seen: set[str] = set()
     result = []
     for call in tool_calls:
         name = call.function.name
-        if name in ("search_knowledge_base", "get_recent_transactions", "get_ongoing_redemptions") and name not in seen:
+        if name in ("search_knowledge_base", "get_orders") and name not in seen:
             result.append(call)
             seen.add(name)
     return result
@@ -231,37 +230,20 @@ def _dedupe_real_tool_calls(tool_calls) -> list:
 
 def _merge_responses(responses: list[ChatResponse]) -> ChatResponse:
     """Combines multiple tool-call results from one turn into a single
-    ChatResponse.
-
-    The common case this exists for - a generic "list my orders" question
-    with no type-specific or delivery-specific wording - makes the router
-    call both get_recent_transactions and get_ongoing_redemptions, each
-    naturally resolving (with no distinguishing detail to narrow to one
-    record) to its own selection-list response. That specific pairing
-    (TRANSACTION_SELECTION + REDEMPTION_SELECTION) is combined into one
-    ORDERS_OVERVIEW response carrying both card lists, so the customer sees
-    every order type in one place instead of only one half.
-
-    Any other pairing (e.g. a compound "check my transaction and tell me the
-    fees" question, or the rarer case where a redemption/transaction resolves
-    straight to a single explanation instead of a list) falls back to
-    picking one response as the base - preferring a TRANSACTION_* or
-    REDEMPTION_* response (whichever has cards to render) over a plain
-    TEXT_ANSWER - and appending every other response's message text after
-    it. This preserves the app's other single-tool-per-turn known tradeoffs;
-    it isn't solved generically here."""
-    selection_types = {ChatResponseType.TRANSACTION_SELECTION, ChatResponseType.REDEMPTION_SELECTION}
-    if {r.type for r in responses} == selection_types:
-        txn_resp = next(r for r in responses if r.type == ChatResponseType.TRANSACTION_SELECTION)
-        redemption_resp = next(r for r in responses if r.type == ChatResponseType.REDEMPTION_SELECTION)
-        combined_message = "\n\n".join([txn_resp.message, redemption_resp.message])
-        return ChatResponse.orders_overview(
-            combined_message,
-            [TransactionOut.model_validate(t) for t in txn_resp.data["transactions"]],
-            [RedemptionOrderOut.model_validate(o) for o in redemption_resp.data["orders"]],
-        )
-
-    base = next((r for r in responses if r.type.value.startswith(("TRANSACTION", "REDEMPTION"))), responses[0])
+    ChatResponse - e.g. a compound "check my transactions and tell me the
+    fees" question calls both get_orders and search_knowledge_base in one
+    turn. Picks one response as the base - preferring a response with cards
+    to render (TRANSACTION_*/REDEMPTION_*/ORDERS_OVERVIEW) over a plain
+    TEXT_ANSWER - and appends every other response's message text after it.
+    This preserves the app's other single-tool-per-turn known tradeoffs;
+    it isn't solved generically here. (A generic "list my orders" question
+    with no type-specific wording never reaches this function at all - it's
+    a single get_orders call with type omitted, handled entirely by
+    _handle_all_orders.)"""
+    base = next(
+        (r for r in responses if r.type.value.startswith(("TRANSACTION", "REDEMPTION", "ORDERS_OVERVIEW"))),
+        responses[0],
+    )
     others = [r for r in responses if r is not base]
     combined_message = "\n\n".join([base.message] + [r.message for r in others])
     return ChatResponse(type=base.type, message=combined_message, data=base.data)
@@ -344,11 +326,61 @@ def _handle_knowledge_base(
     return ChatResponse.text_answer(NO_INFO_MESSAGE, grounded=False)
 
 
-def _handle_recent_transactions(
-    db: Session, user: User, message: str, history: list[ChatMessage]
+def _orders_limit(list_all: bool) -> int:
+    # Bounded either way - even an explicit "list all" caps out well short of
+    # a customer's full history, so a customer with hundreds of transactions
+    # never blows up the LLM context (cost and latency both scale with it).
+    # Default is deliberately small: almost every real question is about
+    # recent/latest activity, not a full history dump.
+    return settings.orders_list_all_limit if list_all else settings.orders_default_limit
+
+
+def _handle_orders(
+    db: Session, user: User, message: str, history: list[ChatMessage], txn_type: str | None, list_all: bool = False
+) -> ChatResponse:
+    """Single dispatch point for get_orders, routing on its `type` argument.
+    type=REDEMPTION -> tracking flow. type in BUY/SELL/RECURRING_BUY/
+    TRANSACTION -> transaction explain/summary/selection flow. type omitted
+    -> the generic "list everything" overview, which never attempts
+    single-item resolution (see _handle_all_orders)."""
+    limit = _orders_limit(list_all)
+    if txn_type == TxnType.REDEMPTION.value:
+        return _handle_redemption_tracking(db, user, message, history, limit)
+    if txn_type in (TxnType.BUY.value, TxnType.SELL.value, TxnType.RECURRING_BUY.value, "TRANSACTION"):
+        return _handle_transactions_of_type(db, user, message, history, txn_type, limit)
+    return _handle_all_orders(db, user, message, limit)
+
+
+def _handle_all_orders(db: Session, user: User, message: str, limit: int) -> ChatResponse:
+    """Generic 'list my orders' with no specific type - fetches everything
+    and always renders the full merged list as one card grid, never
+    attempting to resolve to a single item. Resolving to one item requires
+    knowing which action applies (explain a transaction vs. track a
+    redemption), which a mixed-type generic query can't disambiguate -
+    that's what a type-specific query is for."""
+    try:
+        transactions, redemptions = transaction_service.get_transactions(db, user, type=None, limit=limit)
+    except Exception:
+        logger.exception("Fetching orders failed")
+        return ChatResponse.error("db_unavailable", "We couldn't load your orders. Please try again.")
+
+    if not transactions and not redemptions:
+        return ChatResponse.text_answer("You don't have any orders yet.", grounded=True)
+
+    cards = [
+        OrderCardOut(kind="transaction", transaction=TransactionOut.model_validate(t)) for t in transactions
+    ] + [
+        OrderCardOut(kind="redemption", redemption=transaction_service.to_redemption_out(r)) for r in redemptions
+    ]
+    message_text = "Here are your orders:"
+    return ChatResponse.orders_overview(message_text, cards)
+
+
+def _handle_transactions_of_type(
+    db: Session, user: User, message: str, history: list[ChatMessage], txn_type: str, limit: int
 ) -> ChatResponse:
     try:
-        transactions = transaction_service.get_recent_transactions(db, user)
+        transactions, _ = transaction_service.get_transactions(db, user, type=txn_type, limit=limit)
     except Exception:
         logger.exception("Fetching recent transactions failed")
         return ChatResponse.error("db_unavailable", "We couldn't load your transactions. Please try again.")
@@ -405,13 +437,72 @@ def _handle_recent_transactions(
     return ChatResponse.transaction_selection(selection_message, txn_out)
 
 
+def _redemption_order_record(order: TransactionRecord) -> dict:
+    return {
+        "order_ref": order.id,
+        "product": order.product,
+        "product_type": order.product_type,
+        "metal_type": order.metal_type,
+        "quantity": order.quantity,
+        "status": order.status,
+        "awb_available": order.awb_number is not None,
+        "created_at": order.created_at,
+    }
+
+
+def _explain_redemption_orders_summary_messages(
+    orders: list[TransactionRecord], original_question: str, display_name: str
+) -> list[dict]:
+    records_json = json.dumps([_redemption_order_record(o) for o in orders])
+    system_prompt = prompts.render(
+        "redemption_orders_summary.j2",
+        records_json=records_json,
+        orders=orders,
+        original_question=original_question,
+        display_name=display_name,
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": original_question},
+    ]
+
+
+def explain_redemption_orders_summary(orders: list[TransactionRecord], original_question: str, display_name: str) -> str:
+    """Answers an aggregate/count question spanning several already-authorized,
+    already-fetched redemption orders (e.g. "how many coins are yet to be
+    delivered") - one grounded answer covering all of them, from the order
+    records alone (product/quantity/status), never invoking the tracking API
+    per order just to answer a count."""
+    try:
+        final = llm_client.chat_completion(_explain_redemption_orders_summary_messages(orders, original_question, display_name))
+        return final.content or fallback_redemption_orders_summary(orders)
+    except Exception:
+        logger.exception("Chat completion (redemption orders summary) failed")
+        return fallback_redemption_orders_summary(orders)
+
+
+def explain_redemption_orders_summary_stream(
+    orders: list[TransactionRecord], original_question: str, display_name: str, metrics: TurnMetrics | None = None
+):
+    """Streaming counterpart to explain_redemption_orders_summary()."""
+    return llm_client.stream_chat_completion(
+        _explain_redemption_orders_summary_messages(orders, original_question, display_name), metrics=metrics
+    )
+
+
+def fallback_redemption_orders_summary(orders: list[TransactionRecord]) -> str:
+    lines = [f"{o.product} ({o.status.replace('_', ' ').title()})" for o in orders]
+    return f"You have {len(orders)} matching orders: " + "; ".join(lines) + "."
+
+
 def _redemption_tracking_out(
-    order: RedemptionOrderRecord, lookup: "tracking_service.TrackingLookup | None"
+    order: TransactionRecord, lookup: "tracking_service.TrackingLookup | None"
 ) -> RedemptionTrackingOut:
     return RedemptionTrackingOut(
         order_ref=order.id,
-        product_name=order.product_name,
-        status=order.txn_status,
+        product_name=order.product,
+        quantity=order.quantity or 0.0,
+        status=order.status,
         awb_available=order.awb_number is not None,
         current_location=lookup.current_location if lookup else None,
         latest_event=lookup.latest_event if lookup else None,
@@ -420,7 +511,7 @@ def _redemption_tracking_out(
     )
 
 
-def _build_redemption_tracking(order: RedemptionOrderRecord) -> tuple[RedemptionTrackingOut, bool]:
+def _build_redemption_tracking(order: TransactionRecord) -> tuple[RedemptionTrackingOut, bool]:
     """Returns (tracking, ok). `ok` is False only when an AWB exists but the
     tracking lookup itself failed (network/upstream) - not when there's
     simply no AWB yet, which is an expected `awb_available=False` case, not a
@@ -436,7 +527,7 @@ def _build_redemption_tracking(order: RedemptionOrderRecord) -> tuple[Redemption
     return _redemption_tracking_out(order, lookup), True
 
 
-def track_redemption_order(order: RedemptionOrderRecord, display_name: str, original_question: str) -> ChatResponse:
+def track_redemption_order(order: TransactionRecord, display_name: str, original_question: str) -> ChatResponse:
     """Turns one already-authorized, already-fetched ongoing redemption order
     into a tracking response. Mirrors explain_transaction()'s role for a card
     click: the click is already an unambiguous, explicit action, so this
@@ -444,7 +535,7 @@ def track_redemption_order(order: RedemptionOrderRecord, display_name: str, orig
     tracking response."""
     tracking, ok = _build_redemption_tracking(order)
     if not order.awb_number:
-        text = "Your order is still being processed and doesn't have tracking information yet."
+        text = f"Your {tracking.product_name} ({tracking.quantity}g) is still being processed and doesn't have tracking information yet."
         return ChatResponse.redemption_tracking(text, tracking)
     if not ok:
         text = "Sorry, tracking is temporarily unavailable right now. Please try again shortly."
@@ -454,7 +545,7 @@ def track_redemption_order(order: RedemptionOrderRecord, display_name: str, orig
     return ChatResponse.redemption_tracking(explanation, tracking)
 
 
-def _track_and_respond(db: Session, user: User, order_record: RedemptionOrderRecord, original_question: str) -> ChatResponse:
+def _track_and_respond(db: Session, user: User, order_record: TransactionRecord, original_question: str) -> ChatResponse:
     if not rate_limit.is_allowed(
         str(user.id), "redemption_track", settings.redemption_track_rate_limit, settings.redemption_track_rate_limit_window_seconds
     ):
@@ -467,15 +558,17 @@ def _track_and_respond(db: Session, user: User, order_record: RedemptionOrderRec
     # the spec's "re-validate ownership immediately before use" requirement,
     # same idea as resolve_transactions' id-membership check one level up,
     # plus a live re-check here since tracking is the more sensitive action.
-    fresh = redemption_service.get_ongoing_redemption_by_ref(db, user, order_record.id)
+    fresh = transaction_service.get_ongoing_transaction_by_ref(db, user, order_record.id)
     if fresh is None:
         return ChatResponse.text_answer("Sorry, I couldn't find that order.", grounded=True)
-    return track_redemption_order(fresh, user.display_name, original_question)
+    return track_redemption_order(TransactionRecord.from_model(fresh), user.display_name, original_question)
 
 
-def _handle_redemption_tracking(db: Session, user: User, message: str, history: list[ChatMessage]) -> ChatResponse:
+def _handle_redemption_tracking(
+    db: Session, user: User, message: str, history: list[ChatMessage], limit: int
+) -> ChatResponse:
     try:
-        orders = redemption_service.get_ongoing_redemptions(db, user)
+        _, orders = transaction_service.get_transactions(db, user, type=TxnType.REDEMPTION.value, limit=limit)
     except Exception:
         logger.exception("Fetching ongoing redemption orders failed")
         return ChatResponse.error("db_unavailable", "We couldn't load your orders. Please try again.")
@@ -483,13 +576,13 @@ def _handle_redemption_tracking(db: Session, user: User, message: str, history: 
     if not orders:
         return ChatResponse.text_answer("You don't have any ongoing redemption orders right now.", grounded=True)
 
-    order_out = [redemption_service.to_order_out(o) for o in orders]
+    order_out = [transaction_service.to_redemption_out(o) for o in orders]
 
     if len(orders) == 1:
         return _track_and_respond(db, user, orders[0], message)
 
     # 2+ orders: second forced-tool-choice resolve call, same pattern as
-    # _handle_recent_transactions's resolve_transactions/no_single_match step.
+    # _handle_transactions_of_type's resolve_transactions/no_single_match step.
     orders_by_ref = {o.id: o for o in orders}
     resolve_system_prompt = prompts.render(
         "redemption_resolve.j2",
@@ -511,13 +604,19 @@ def _handle_redemption_tracking(db: Session, user: User, message: str, history: 
         )
         for call in getattr(resolved, "tool_calls", None) or []:
             args = json.loads(call.function.arguments or "{}")
-            if call.function.name == "resolve_redemption_order":
-                ref = args.get("order_ref")
-                if ref in orders_by_ref:
-                    return _track_and_respond(db, user, orders_by_ref[ref], message)
-                # hallucinated/injected ref not in this user's own fetched list -
-                # fall through to the safe selection list, same defense as
-                # resolve_transactions.
+            if call.function.name == "resolve_redemption_orders":
+                # Only refs actually in this user's own fetched list count - a
+                # hallucinated or injected ref is silently dropped, never looked
+                # up fresh.
+                refs = [r for r in args.get("order_refs", []) if r in orders_by_ref]
+                if len(refs) == 1:
+                    return _track_and_respond(db, user, orders_by_ref[refs[0]], message)
+                if len(refs) > 1:
+                    chosen = [orders_by_ref[r] for r in refs]
+                    with tracing.tracer.start_as_current_span("generate_final_answer"):
+                        explanation = explain_redemption_orders_summary(chosen, message, user.display_name)
+                    return ChatResponse.redemption_summary(explanation, [transaction_service.to_redemption_out(o) for o in chosen])
+                # refs empty (every ref hallucinated) - fall through to the safe list below
             elif call.function.name == "no_single_redemption_match":
                 selection_message = REDEMPTION_SELECTION_MESSAGES.get(args.get("reason"), REDEMPTION_SELECTION_MESSAGES["ambiguous"])
     except Exception:
@@ -672,8 +771,8 @@ def explain_redemption_tracking_stream(
 
 def fallback_redemption_tracking(tracking: RedemptionTrackingOut) -> str:
     if not tracking.awb_available:
-        return f"Your {tracking.product_name} order is still being processed and doesn't have tracking information yet."
-    text = f"Your {tracking.product_name} order is currently {tracking.status}."
+        return f"Your {tracking.product_name} ({tracking.quantity}g) order is still being processed and doesn't have tracking information yet."
+    text = f"Your {tracking.product_name} ({tracking.quantity}g) order is currently {tracking.status}."
     if tracking.current_location:
         text += f" Latest update: {tracking.current_location}."
     return text
@@ -687,7 +786,7 @@ class _TrackRedemptionOrderStream:
     final ChatResponse (same "iterate then read an attribute" shape as
     llm_client.StreamedCompletion and StreamedChatTurn)."""
 
-    def __init__(self, order: RedemptionOrderRecord, display_name: str, original_question: str, metrics: TurnMetrics | None = None):
+    def __init__(self, order: TransactionRecord, display_name: str, original_question: str, metrics: TurnMetrics | None = None):
         self._order = order
         self._display_name = display_name
         self._original_question = original_question
@@ -699,7 +798,7 @@ class _TrackRedemptionOrderStream:
         tracking, ok = _build_redemption_tracking(self._order)
         self.tracking = tracking
         if not self._order.awb_number:
-            self.text = "Your order is still being processed and doesn't have tracking information yet."
+            self.text = f"Your {tracking.product_name} ({tracking.quantity}g) is still being processed and doesn't have tracking information yet."
             yield self.text
             return
         if not ok:
@@ -720,7 +819,7 @@ class _TrackRedemptionOrderStream:
 
 
 def track_redemption_order_stream(
-    order: RedemptionOrderRecord, display_name: str, original_question: str, metrics: TurnMetrics | None = None
+    order: TransactionRecord, display_name: str, original_question: str, metrics: TurnMetrics | None = None
 ) -> _TrackRedemptionOrderStream:
     return _TrackRedemptionOrderStream(order, display_name, original_question, metrics)
 
@@ -834,36 +933,25 @@ class StreamedChatTurn:
             real_calls = _dedupe_real_tool_calls(tool_calls)
             calls_to_run = real_calls or tool_calls
 
-            # A generic "list my orders" turn dispatches both tools but, per
-            # product decision, must NOT be merged into one bubble the way
-            # e.g. a KB+transaction compound question is (see _merge_responses) -
-            # the customer sees two separate assistant messages instead: the
-            # transaction list, then the redemption list, each persisted and
-            # streamed on its own. This is the only pairing split this way.
-            split_orders_listing = {c.function.name for c in calls_to_run} == {
-                "get_recent_transactions",
-                "get_ongoing_redemptions",
-            }
-
             step_span_names = {
                 "search_knowledge_base": "kb_search_and_judge",
-                "get_recent_transactions": "transaction_lookup_and_resolve",
-                "get_ongoing_redemptions": "redemption_lookup_and_resolve",
+                "get_orders": "orders_lookup_and_resolve",
                 "respond_directly": "generate_final_answer",
             }
 
             responses: list[ChatResponse] = []
             prefix = ""
-            for i, call in enumerate(calls_to_run):
+            for call in calls_to_run:
                 tool_name = call.function.name
                 self.response = None
                 with tracing.tracer.start_as_current_span(step_span_names.get(tool_name, "handle_tool")):
                     if tool_name == "search_knowledge_base":
                         sub_stream = self._stream_knowledge_base(db, user, message)
-                    elif tool_name == "get_recent_transactions":
-                        sub_stream = self._stream_recent_transactions(db, user, message, history)
-                    elif tool_name == "get_ongoing_redemptions":
-                        sub_stream = self._stream_redemption_tracking(db, user, message, history)
+                    elif tool_name == "get_orders":
+                        args = json.loads(call.function.arguments or "{}")
+                        sub_stream = self._stream_orders(
+                            db, user, message, history, args.get("type"), bool(args.get("list_all"))
+                        )
                     elif tool_name == "respond_directly":
                         sub_stream = self._stream_small_talk(user, message)
                     else:
@@ -878,24 +966,9 @@ class StreamedChatTurn:
                     for text_so_far in sub_stream:
                         yield prefix + text_so_far
                 responses.append(self.response)
-                if split_orders_listing:
-                    # Each message stands alone - no accumulated prefix - and,
-                    # except for the last one, is yielded as a completed
-                    # ChatResponse (rather than more delta text) so the router
-                    # can persist it and tell the frontend to finalize this
-                    # bubble and start a new one for what follows.
-                    prefix = ""
-                    if i < len(calls_to_run) - 1:
-                        yield self.response
-                else:
-                    prefix = prefix + self.response.message + "\n\n"
+                prefix = prefix + self.response.message + "\n\n"
 
-            if len(responses) == 1:
-                self.response = responses[0]
-            elif split_orders_listing:
-                self.response = responses[-1]
-            else:
-                self.response = _merge_responses(responses)
+            self.response = responses[0] if len(responses) == 1 else _merge_responses(responses)
         finally:
             if self.response is not None:
                 root_span.set_attribute("response.type", self.response.type.value)
@@ -983,9 +1056,57 @@ class StreamedChatTurn:
         text = streamed.content or NO_INFO_MESSAGE
         self.response = ChatResponse.text_answer(text, grounded=True, sources=cited_ids)
 
-    def _stream_recent_transactions(self, db: Session, user: User, message: str, history: list[ChatMessage]):
+    def _stream_orders(
+        self,
+        db: Session,
+        user: User,
+        message: str,
+        history: list[ChatMessage],
+        txn_type: str | None,
+        list_all: bool = False,
+    ):
+        """Streaming counterpart to _handle_orders - single dispatch point
+        for get_orders, routing on its `type` argument."""
+        limit = _orders_limit(list_all)
+        if txn_type == TxnType.REDEMPTION.value:
+            yield from self._stream_redemption_tracking(db, user, message, history, limit)
+        elif txn_type in (TxnType.BUY.value, TxnType.SELL.value, TxnType.RECURRING_BUY.value, "TRANSACTION"):
+            yield from self._stream_transactions_of_type(db, user, message, history, txn_type, limit)
+        else:
+            yield from self._stream_all_orders(db, user, message, limit)
+
+    def _stream_all_orders(self, db: Session, user: User, message: str, limit: int):
+        """Streaming counterpart to _handle_all_orders - no LLM call, so
+        nothing actually streams token-by-token; yielded once for a uniform
+        SSE contract, same as e.g. the fixed-string redemption-selection case."""
         try:
-            transactions = transaction_service.get_recent_transactions(db, user)
+            transactions, redemptions = transaction_service.get_transactions(db, user, type=None, limit=limit)
+        except Exception:
+            logger.exception("Fetching orders failed")
+            self.response = ChatResponse.error("db_unavailable", "We couldn't load your orders. Please try again.")
+            yield self.response.message
+            return
+
+        if not transactions and not redemptions:
+            text = "You don't have any orders yet."
+            self.response = ChatResponse.text_answer(text, grounded=True)
+            yield text
+            return
+
+        cards = [
+            OrderCardOut(kind="transaction", transaction=TransactionOut.model_validate(t)) for t in transactions
+        ] + [
+            OrderCardOut(kind="redemption", redemption=transaction_service.to_redemption_out(r)) for r in redemptions
+        ]
+        text = "Here are your orders:"
+        self.response = ChatResponse.orders_overview(text, cards)
+        yield text
+
+    def _stream_transactions_of_type(
+        self, db: Session, user: User, message: str, history: list[ChatMessage], txn_type: str, limit: int
+    ):
+        try:
+            transactions, _ = transaction_service.get_transactions(db, user, type=txn_type, limit=limit)
         except Exception:
             logger.exception("Fetching recent transactions failed")
             self.response = ChatResponse.error("db_unavailable", "We couldn't load your transactions. Please try again.")
@@ -1065,9 +1186,27 @@ class StreamedChatTurn:
                 yield text
         self.response = ChatResponse.transaction_summary(text, transactions)
 
-    def _stream_redemption_tracking(self, db: Session, user: User, message: str, history: list[ChatMessage]):
+    def _stream_explain_redemption_orders_summary(
+        self, orders: list[TransactionRecord], original_question: str, display_name: str
+    ):
+        with tracing.tracer.start_as_current_span("generate_final_answer"):
+            try:
+                streamed = explain_redemption_orders_summary_stream(
+                    orders, original_question, display_name, metrics=self.metrics
+                )
+                yield from _yield_cumulative(streamed)
+                text = streamed.content or fallback_redemption_orders_summary(orders)
+            except Exception:
+                logger.exception("Chat completion (redemption orders summary) failed")
+                text = fallback_redemption_orders_summary(orders)
+                yield text
+        self.response = ChatResponse.redemption_summary(text, [transaction_service.to_redemption_out(o) for o in orders])
+
+    def _stream_redemption_tracking(
+        self, db: Session, user: User, message: str, history: list[ChatMessage], limit: int
+    ):
         try:
-            orders = redemption_service.get_ongoing_redemptions(db, user)
+            _, orders = transaction_service.get_transactions(db, user, type=TxnType.REDEMPTION.value, limit=limit)
         except Exception:
             logger.exception("Fetching ongoing redemption orders failed")
             self.response = ChatResponse.error("db_unavailable", "We couldn't load your orders. Please try again.")
@@ -1080,7 +1219,7 @@ class StreamedChatTurn:
             yield text
             return
 
-        order_out = [redemption_service.to_order_out(o) for o in orders]
+        order_out = [transaction_service.to_redemption_out(o) for o in orders]
 
         if len(orders) == 1:
             yield from self._stream_track_redemption(db, user, orders[0], message)
@@ -1096,7 +1235,7 @@ class StreamedChatTurn:
         resolve_messages += [{"role": h.role, "content": h.content} for h in history]
         resolve_messages.append({"role": "user", "content": message})
 
-        resolved_ref: str | None = None
+        resolved_refs: list[str] = []
         selection_message = REDEMPTION_SELECTION_MESSAGES["ambiguous"]
         try:
             resolved = llm_client.chat_completion(
@@ -1109,23 +1248,25 @@ class StreamedChatTurn:
             )
             for call in getattr(resolved, "tool_calls", None) or []:
                 args = json.loads(call.function.arguments or "{}")
-                if call.function.name == "resolve_redemption_order":
-                    ref = args.get("order_ref")
-                    if ref in orders_by_ref:
-                        resolved_ref = ref
+                if call.function.name == "resolve_redemption_orders":
+                    resolved_refs = [r for r in args.get("order_refs", []) if r in orders_by_ref]
                 elif call.function.name == "no_single_redemption_match":
                     selection_message = REDEMPTION_SELECTION_MESSAGES.get(args.get("reason"), REDEMPTION_SELECTION_MESSAGES["ambiguous"])
         except Exception:
             logger.exception("Redemption order resolution call failed; falling back to selection list")
 
-        if resolved_ref is not None:
-            yield from self._stream_track_redemption(db, user, orders_by_ref[resolved_ref], message)
+        if len(resolved_refs) == 1:
+            yield from self._stream_track_redemption(db, user, orders_by_ref[resolved_refs[0]], message)
+            return
+        if len(resolved_refs) > 1:
+            chosen = [orders_by_ref[r] for r in resolved_refs]
+            yield from self._stream_explain_redemption_orders_summary(chosen, message, user.display_name)
             return
 
         self.response = ChatResponse.redemption_selection(selection_message, order_out)
         yield selection_message
 
-    def _stream_track_redemption(self, db: Session, user: User, order_record: RedemptionOrderRecord, original_question: str):
+    def _stream_track_redemption(self, db: Session, user: User, order_record: TransactionRecord, original_question: str):
         if not rate_limit.is_allowed(
             str(user.id), "redemption_track", settings.redemption_track_rate_limit, settings.redemption_track_rate_limit_window_seconds
         ):
@@ -1134,13 +1275,15 @@ class StreamedChatTurn:
             yield text
             return
 
-        fresh = redemption_service.get_ongoing_redemption_by_ref(db, user, order_record.id)
+        fresh = transaction_service.get_ongoing_transaction_by_ref(db, user, order_record.id)
         if fresh is None:
             text = "Sorry, I couldn't find that order."
             self.response = ChatResponse.text_answer(text, grounded=True)
             yield text
             return
-        streamed = track_redemption_order_stream(fresh, user.display_name, original_question, metrics=self.metrics)
+        streamed = track_redemption_order_stream(
+            TransactionRecord.from_model(fresh), user.display_name, original_question, metrics=self.metrics
+        )
         yield from streamed
         self.response = ChatResponse.redemption_tracking(streamed.text, streamed.tracking)
 

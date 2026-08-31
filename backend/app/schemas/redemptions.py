@@ -29,6 +29,7 @@ class TrackingEvent(BaseModel):
 class RedemptionTrackingOut(BaseModel):
     order_ref: str
     product_name: str
+    quantity: float
     status: str
     awb_available: bool
     current_location: str | None = None

@@ -64,37 +64,23 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
   // further delta somehow arriving after it (a stray late event) must not
   // overwrite the already-finalized text, which is what caused the visible
   // flicker right after a response completed.
-  //
-  // `currentId` is mutable (not the closed-over `initialId`) because a
-  // multi-message turn (see StreamedChatTurn's split_orders_listing) fires
-  // onMessage mid-stream: that finalizes the bubble in progress and opens a
-  // fresh pending one, and every event after that (deltas, the eventual
-  // onDone) must target the new bubble, not the first one.
   const makeCallbacks = useCallback(
-    (initialId: string) => {
-      let currentId = initialId;
+    (id: string) => {
       let finished = false;
       return {
         onDelta: (delta: string) => {
-          if (!finished) appendDelta(currentId, delta);
-        },
-        onMessage: (response: ChatResponse) => {
-          if (finished) return;
-          finalizeMessage(currentId, response);
-          const nextId = newId();
-          setMessages((prev) => [...prev, { id: nextId, role: "assistant", status: "pending", text: "" }]);
-          currentId = nextId;
+          if (!finished) appendDelta(id, delta);
         },
         onDone: (response: ChatResponse) => {
           if (finished) return;
           finished = true;
-          finalizeMessage(currentId, response);
+          finalizeMessage(id, response);
           onTurnComplete?.();
         },
         onError: (message: string) => {
           if (finished) return;
           finished = true;
-          failMessage(currentId, message);
+          failMessage(id, message);
         },
       };
     },

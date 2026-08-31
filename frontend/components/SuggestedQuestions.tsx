@@ -5,7 +5,7 @@ interface Props {
 const SUGGESTIONS = [
   { label: "How do I sell my gold?", hint: "Product & policy help" },
   { label: "Show me my recent transactions", hint: "Buy / sell history" },
-  { label: "Where is my order?", hint: "Track a delivery" },
+  { label: "Where is my latest order?", hint: "Track a delivery" },
   { label: "Why did my last transaction fail?", hint: "Explain one transaction" },
   { label: "List all my orders", hint: "Transactions + deliveries" },
   { label: "What KYC documents do I need?", hint: "Account & verification" },

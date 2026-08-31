@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_admin
 from app.db import get_db
-from app.models import Conversation, Message, RedemptionOrder, SupportArticle, Transaction, User
+from app.models import Conversation, Message, SupportArticle, Transaction, TxnType, User
 from app.schemas.admin import (
     AdminCostSummary,
     AdminFaqArticleOut,
@@ -28,9 +28,19 @@ router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(get_cu
 
 @router.get("/users", response_model=list[AdminUserOut])
 def list_users(db: Session = Depends(get_db)) -> list[AdminUserOut]:
-    txn_counts = dict(db.execute(select(Transaction.user_id, func.count()).group_by(Transaction.user_id)).all())
+    txn_counts = dict(
+        db.execute(
+            select(Transaction.user_id, func.count())
+            .where(Transaction.type != TxnType.REDEMPTION)
+            .group_by(Transaction.user_id)
+        ).all()
+    )
     redemption_counts = dict(
-        db.execute(select(RedemptionOrder.user_id, func.count()).group_by(RedemptionOrder.user_id)).all()
+        db.execute(
+            select(Transaction.user_id, func.count())
+            .where(Transaction.type == TxnType.REDEMPTION)
+            .group_by(Transaction.user_id)
+        ).all()
     )
     convo_counts = dict(db.execute(select(Conversation.user_id, func.count()).group_by(Conversation.user_id)).all())
     users = list(db.scalars(select(User).order_by(User.username)))
@@ -49,25 +59,36 @@ def list_users(db: Session = Depends(get_db)) -> list[AdminUserOut]:
 
 
 @router.get("/transactions", response_model=list[AdminTransactionOut])
-def list_transactions(db: Session = Depends(get_db)) -> list[AdminTransactionOut]:
+def list_transactions(type: str | None = None, db: Session = Depends(get_db)) -> list[AdminTransactionOut]:
     # The one intentionally-unscoped query in the app: every other transaction
     # endpoint (routers/transactions.py) filters by current_user.id, but this
-    # one is guarded by get_current_admin instead, not by ownership.
-    stmt = (
-        select(Transaction, User)
-        .join(User, Transaction.user_id == User.id)
-        .order_by(Transaction.created_at.desc())
-    )
+    # one is guarded by get_current_admin instead, not by ownership. Excludes
+    # REDEMPTION by default (matching this endpoint's behavior before the
+    # merge, when redemptions lived in a separate table entirely) - the
+    # frontend's admin transactions page never passes ?type= and its
+    # AdminTransaction type assumes non-optional amount/payment_method, which
+    # don't apply to a REDEMPTION row. Pass ?type=REDEMPTION (as the
+    # /admin/redemptions alias below does) or another specific type to narrow.
+    stmt = select(Transaction, User).join(User, Transaction.user_id == User.id)
+    if type is not None:
+        stmt = stmt.where(Transaction.type == type)
+    else:
+        stmt = stmt.where(Transaction.type != TxnType.REDEMPTION)
+    stmt = stmt.order_by(Transaction.created_at.desc())
     rows = db.execute(stmt).all()
     return [
         AdminTransactionOut(
             id=t.id,
             type=t.type,
             product=t.product,
-            amount=float(t.amount),
+            amount=float(t.amount) if t.amount is not None else None,
             status=t.status,
             failure_reason=t.failure_reason,
             payment_method=t.payment_method,
+            awb_number=t.awb_number,
+            product_type=t.product_type,
+            metal_type=t.metal_type,
+            quantity=float(t.quantity) if t.quantity is not None else None,
             created_at=t.created_at,
             updated_at=t.updated_at,
             user_id=u.id,
@@ -80,23 +101,23 @@ def list_transactions(db: Session = Depends(get_db)) -> list[AdminTransactionOut
 
 @router.get("/redemptions", response_model=list[AdminRedemptionOrderOut])
 def list_redemption_orders(db: Session = Depends(get_db)) -> list[AdminRedemptionOrderOut]:
-    # Same intentionally-unscoped-by-ownership pattern as list_transactions -
-    # guarded by get_current_admin instead, shows every user's orders, not
-    # just the calling admin's own.
+    # Thin alias over list_transactions forcing type=REDEMPTION, so the
+    # existing frontend admin page keeps working unmodified.
     stmt = (
-        select(RedemptionOrder, User)
-        .join(User, RedemptionOrder.user_id == User.id)
-        .order_by(RedemptionOrder.created_at.desc())
+        select(Transaction, User)
+        .join(User, Transaction.user_id == User.id)
+        .where(Transaction.type == TxnType.REDEMPTION)
+        .order_by(Transaction.created_at.desc())
     )
     rows = db.execute(stmt).all()
     return [
         AdminRedemptionOrderOut(
-            order_ref=str(o.id),
-            product_name=o.product_name,
-            product_type=o.product_type,
-            metal_type=o.metal_type,
-            quantity=float(o.quantity_purchased),
-            status=o.txn_status,
+            order_ref=o.id,
+            product_name=o.product,
+            product_type=o.product_type or "",
+            metal_type=o.metal_type or "",
+            quantity=float(o.quantity) if o.quantity is not None else 0.0,
+            status=o.status,
             created_at=o.created_at,
             user_id=u.id,
             username=u.username,
