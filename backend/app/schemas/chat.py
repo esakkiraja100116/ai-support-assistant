@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from app.schemas.redemptions import RedemptionOrderOut, RedemptionTrackingOut
 from app.schemas.transactions import TransactionDetailOut, TransactionOut
@@ -14,6 +14,8 @@ class ChatResponseType(str, Enum):
     TRANSACTION_SUMMARY = "TRANSACTION_SUMMARY"
     REDEMPTION_SELECTION = "REDEMPTION_SELECTION"
     REDEMPTION_TRACKING = "REDEMPTION_TRACKING"
+    REDEMPTION_SUMMARY = "REDEMPTION_SUMMARY"
+    ORDERS_OVERVIEW = "ORDERS_OVERVIEW"
     ESCALATE = "ESCALATE"
     ERROR = "ERROR"
 
@@ -52,6 +54,28 @@ class RedemptionSelectionData(BaseModel):
 
 class RedemptionTrackingData(BaseModel):
     tracking: RedemptionTrackingOut
+
+
+class RedemptionSummaryData(BaseModel):
+    orders: list[RedemptionOrderOut]
+
+
+class OrderCardOut(BaseModel):
+    kind: Literal["transaction", "redemption"]
+    transaction: TransactionOut | None = None
+    redemption: RedemptionOrderOut | None = None
+
+    @model_validator(mode="after")
+    def _one_side_populated(self) -> "OrderCardOut":
+        if self.kind == "transaction" and self.transaction is None:
+            raise ValueError("transaction must be set when kind='transaction'")
+        if self.kind == "redemption" and self.redemption is None:
+            raise ValueError("redemption must be set when kind='redemption'")
+        return self
+
+
+class OrdersOverviewData(BaseModel):
+    orders: list[OrderCardOut]
 
 
 class EscalateData(BaseModel):
@@ -114,6 +138,22 @@ class ChatResponse(BaseModel):
             type=ChatResponseType.REDEMPTION_TRACKING,
             message=message,
             data=RedemptionTrackingData(tracking=tracking).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def redemption_summary(cls, message: str, orders: list[RedemptionOrderOut]) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.REDEMPTION_SUMMARY,
+            message=message,
+            data=RedemptionSummaryData(orders=orders).model_dump(mode="json"),
+        )
+
+    @classmethod
+    def orders_overview(cls, message: str, orders: list[OrderCardOut]) -> "ChatResponse":
+        return cls(
+            type=ChatResponseType.ORDERS_OVERVIEW,
+            message=message,
+            data=OrdersOverviewData(orders=orders).model_dump(mode="json"),
         )
 
     @classmethod

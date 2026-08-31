@@ -15,7 +15,7 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 
 from app.config import settings
-from app.services import pricing, session_log, turn_metrics
+from app.services import pii, pricing, session_log, turn_metrics
 from app.services.turn_metrics import TurnMetrics
 
 _client: OpenAI | None = None
@@ -57,7 +57,7 @@ def _record_call(
         if tool_calls:
             tool_call_names = [c.function.name for c in tool_calls]
         if message.content:
-            message_content = message.content
+            message_content = pii.redact_text(message.content)
 
     # Enriches whatever span orchestrator.py currently has active (via
     # tracer.start_as_current_span at each meaningful step) with this call's
@@ -94,7 +94,8 @@ def _record_call(
     if message is not None:
         if tool_call_names:
             event["tool_calls"] = [
-                {"name": c.function.name, "arguments": c.function.arguments} for c in message.tool_calls
+                {"name": c.function.name, "arguments": pii.redact_text(c.function.arguments)}
+                for c in message.tool_calls
             ]
         if message_content:
             event["content"] = message_content

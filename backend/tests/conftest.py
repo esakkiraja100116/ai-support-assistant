@@ -127,20 +127,23 @@ def make_redemption_order(db_session):
         user: models.User,
         txn_id: str,
         status: str = "IN_TRANSIT",
-        product_name: str = "Aura Gold Coin",
+        product_name: str = "Gold Coin",
         product_type: str = "coin",
         metal_type: str = "gold",
         quantity_purchased: float = 2.0,
         awb_number: str | None = "PRO19460772",
-    ) -> models.RedemptionOrder:
-        order = models.RedemptionOrder(
-            txn_id=txn_id,
+    ) -> models.Transaction:
+        order = models.Transaction(
+            id=f"rdm_{txn_id}",
             user_id=user.id,
-            product_name=product_name,
+            type="REDEMPTION",
+            product=product_name,
+            amount=None,
+            status=status,
+            payment_method=None,
             product_type=product_type,
             metal_type=metal_type,
-            quantity_purchased=quantity_purchased,
-            txn_status=status,
+            quantity=quantity_purchased,
             awb_number=awb_number,
         )
         db_session.add(order)

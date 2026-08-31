@@ -102,8 +102,8 @@ def test_chat_stream_transaction_explanation_streams_and_persists(
         names = _tool_names(tools)
         if not tools:
             return _FakeMessage(content="Transaction question")  # title-gen call, no tools
-        if "get_recent_transactions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}')])
         if "resolve_transactions" in names:
             return _FakeMessage(
                 tool_calls=[_FakeToolCall("resolve_transactions", f'{{"transaction_ids": ["{txn.id}"]}}')]
@@ -197,7 +197,7 @@ def test_chat_stream_merges_transaction_and_kb_when_router_calls_both_tools(
     client, make_user, make_transaction, auth_headers, db_session, monkeypatch
 ):
     """Streaming counterpart of test_chat_routing.py's compound transaction+KB
-    regression test: the router can correctly issue both get_recent_transactions
+    regression test: the router can correctly issue both get_orders
     and search_knowledge_base in one response - both must be run and merged,
     with the cumulative streamed text growing across the boundary between them."""
     from app.models import SupportArticle
@@ -219,9 +219,9 @@ def test_chat_stream_merges_transaction_and_kb_when_router_calls_both_tools(
         names = _tool_names(tools)
         if not tools:
             return _FakeMessage(content="Transactions and fees question")  # title-gen call
-        if "get_recent_transactions" in names and "search_knowledge_base" in names:
+        if "get_orders" in names and "search_knowledge_base" in names:
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("get_recent_transactions"), _FakeToolCall("search_knowledge_base")]
+                tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}'), _FakeToolCall("search_knowledge_base")]
             )
         if "resolve_transactions" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("no_single_match", '{"reason": "list_requested"}')])

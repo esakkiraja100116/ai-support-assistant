@@ -17,14 +17,24 @@ function newId(): string {
     : `${Date.now()}-${Math.random()}`;
 }
 
-export function useChat(session: AuthSession | null, conversationId: string | null, onTurnComplete?: () => void) {
+export function useChat(
+  session: AuthSession | null,
+  conversationId: string | null,
+  onTurnComplete?: () => void,
+  onConversationCreated?: (id: string) => void
+) {
   const [messages, setMessages] = useState<ChatUIMessage[]>([]);
   const hydratedFor = useRef<string | null>(null);
+  // Holds an id generated locally for the very first message of a brand-new
+  // chat, before the "c=" query param (and thus the conversationId prop)
+  // catches up to it.
+  const pendingConversationId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!session || !conversationId) {
       setMessages([]);
       hydratedFor.current = null;
+      pendingConversationId.current = null;
       return;
     }
     const key = `${session.userId}:${conversationId}`;
@@ -38,6 +48,24 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       // way, as an empty conversation, rather than surfacing an error state.
       .catch(() => setMessages([]));
   }, [session, conversationId]);
+
+  // Resolves the id to send this turn to. If the caller hasn't put an id in
+  // the URL yet (a fresh "New chat"), generate one now, mark it as already
+  // hydrated (there's nothing to fetch for a conversation that doesn't exist
+  // yet), and let the caller update the URL - without clobbering the
+  // optimistic messages we're about to add once that URL update flows back
+  // down as a conversationId prop change.
+  const resolveConversationId = useCallback(() => {
+    if (conversationId) return conversationId;
+    if (!session) return null;
+    if (!pendingConversationId.current) {
+      const id = newId();
+      pendingConversationId.current = id;
+      hydratedFor.current = `${session.userId}:${id}`;
+      onConversationCreated?.(id);
+    }
+    return pendingConversationId.current;
+  }, [session, conversationId, onConversationCreated]);
 
   // Each SSE "delta" event carries the full text-so-far, accumulated on the
   // backend (not an incremental piece) - render it directly, no client-side
@@ -89,7 +117,9 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!session || !conversationId) return;
+      if (!session) return;
+      const activeId = resolveConversationId();
+      if (!activeId) return;
       const userMessage: ChatUIMessage = { id: newId(), role: "user", status: "sent", text };
       const assistantId = newId();
       const assistantPlaceholder: ChatUIMessage = {
@@ -101,14 +131,15 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       };
       setMessages((prev) => [...prev, userMessage, assistantPlaceholder]);
 
-      await streamChatMessage(session.accessToken, text, conversationId, makeCallbacks(assistantId));
+      await streamChatMessage(session.accessToken, text, activeId, makeCallbacks(assistantId));
     },
-    [session, conversationId, makeCallbacks]
+    [session, resolveConversationId, makeCallbacks]
   );
 
   const selectTransaction = useCallback(
     async (transactionId: string) => {
       if (!session) return;
+      const activeId = resolveConversationId();
       const assistantId = newId();
       const placeholder: ChatUIMessage = {
         id: assistantId,
@@ -119,14 +150,15 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       };
       setMessages((prev) => [...prev, placeholder]);
 
-      await streamExplainTransaction(session.accessToken, transactionId, conversationId, makeCallbacks(assistantId));
+      await streamExplainTransaction(session.accessToken, transactionId, activeId, makeCallbacks(assistantId));
     },
-    [session, conversationId, makeCallbacks]
+    [session, resolveConversationId, makeCallbacks]
   );
 
   const selectRedemptionOrder = useCallback(
     async (orderRef: string) => {
       if (!session) return;
+      const activeId = resolveConversationId();
       const assistantId = newId();
       const placeholder: ChatUIMessage = {
         id: assistantId,
@@ -137,9 +169,9 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       };
       setMessages((prev) => [...prev, placeholder]);
 
-      await streamTrackRedemptionOrder(session.accessToken, orderRef, conversationId, makeCallbacks(assistantId));
+      await streamTrackRedemptionOrder(session.accessToken, orderRef, activeId, makeCallbacks(assistantId));
     },
-    [session, conversationId, makeCallbacks]
+    [session, resolveConversationId, makeCallbacks]
   );
 
   const retry = useCallback(
@@ -149,20 +181,26 @@ export function useChat(session: AuthSession | null, conversationId: string | nu
       setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, status: "pending", text: "" } : m)));
 
       if (target.retry.kind === "chat") {
-        if (!conversationId) return;
-        await streamChatMessage(session.accessToken, target.retry.message, conversationId, makeCallbacks(messageId));
+        const activeId = resolveConversationId();
+        if (!activeId) return;
+        await streamChatMessage(session.accessToken, target.retry.message, activeId, makeCallbacks(messageId));
       } else if (target.retry.kind === "explain") {
         await streamExplainTransaction(
           session.accessToken,
           target.retry.transactionId,
-          conversationId,
+          resolveConversationId(),
           makeCallbacks(messageId)
         );
       } else {
-        await streamTrackRedemptionOrder(session.accessToken, target.retry.orderRef, conversationId, makeCallbacks(messageId));
+        await streamTrackRedemptionOrder(
+          session.accessToken,
+          target.retry.orderRef,
+          resolveConversationId(),
+          makeCallbacks(messageId)
+        );
       }
     },
-    [messages, session, conversationId, makeCallbacks]
+    [messages, session, resolveConversationId, makeCallbacks]
   );
 
   return { messages, sendMessage, selectTransaction, selectRedemptionOrder, retry };

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import httpx
 import redis
+from pydantic import ValidationError
 
 from app.config import settings
 from app.schemas.redemptions import TrackingEvent
@@ -116,7 +117,13 @@ def _normalize(raw: dict) -> TrackingLookup:
             TrackingEvent(type=h["type"], remarks=h["remarks"], area=h["area"], event_time=h["event_time"])
             for h in history_raw
         ]
-    except (KeyError, TypeError) as exc:
+    except (KeyError, TypeError, ValidationError) as exc:
+        # KeyError/TypeError catch a missing/wrong-shaped envelope; ValidationError
+        # catches a present-but-invalid *value* (e.g. event_time that isn't a real
+        # timestamp) - TrackingEvent's own Pydantic validation raises that, and
+        # without catching it here it would escape this function entirely, bypassing
+        # every graceful-degradation path (stale-cache fallback, the generic
+        # "tracking unavailable" message) that every other TrackingError gets.
         raise TrackingMalformedError(str(exc)) from exc
 
     latest = history[-1] if history else None

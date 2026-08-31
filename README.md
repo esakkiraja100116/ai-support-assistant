@@ -14,6 +14,7 @@ A full-stack support chat for a platform where customers buy and sell gold. It a
 📹 [v1.0 demo video](https://drive.google.com/file/d/12BKAPZOa-xUKVDwou-XT7dRsfrUrzRAd/view?usp=sharing)
 📹 [Support demo v2](https://drive.google.com/file/d/1_6J23VUsNVTcfVrIHJmptU-d7e-5ujrf/view?usp=sharing)
 📹 [Transaction support demo v2](https://drive.google.com/file/d/1vfzhuiHsM3CjKRgFN3n16cleIoKInns6/view?usp=sharing)
+📹 [Redemption order demo v2](https://drive.google.com/file/d/1ea1nZm6ja-Det2wldptMkgaqJ-y1vuUP/view?usp=sharing)
 
 ## Quick start
 

@@ -128,6 +128,30 @@ def test_get_tracking_circuit_breaker_short_circuits_after_threshold(monkeypatch
     assert calls["count"] == calls_before_breaker_opens
 
 
+def test_get_tracking_raises_malformed_error_on_missing_key(monkeypatch, flush_redis):
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _FakeResponse(200, {"data": {"oops": "no tracking key"}}))
+
+    with pytest.raises(tracking_service.TrackingMalformedError):
+        tracking_service.get_tracking("PRO_MISSING_KEY")
+
+
+def test_get_tracking_raises_malformed_error_on_invalid_value_not_just_missing_key(monkeypatch, flush_redis):
+    """A present-but-invalid *value* (not a missing/wrong-shaped key) must be
+    caught the same way as a missing key. TrackingEvent's own Pydantic
+    validation is what actually rejects a bad value like this, and that
+    raises pydantic.ValidationError - a real regression let this escape
+    _normalize() uncaught, bypassing the stale-cache fallback and the
+    generic "unavailable" customer message every other TrackingError gets,
+    and crashing the request instead."""
+    bad_payload = {
+        "data": {"tracking": {"history": [{"type": "InTransit", "remarks": "x", "area": "y", "event_time": "NOT-A-DATE"}]}}
+    }
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: _FakeResponse(200, bad_payload))
+
+    with pytest.raises(tracking_service.TrackingMalformedError):
+        tracking_service.get_tracking("PRO_BAD_VALUE")
+
+
 def test_get_tracking_falls_back_to_stale_cache_on_upstream_failure(monkeypatch, flush_redis):
     monkeypatch.setattr(httpx, "get", lambda *a, **k: _FakeResponse(200, TRACKING_FIXTURES["PRO19460774"]))
     tracking_service.get_tracking("PRO19460774")  # populates both the primary and stale-shadow cache keys

@@ -27,7 +27,7 @@ def test_chat_merges_transaction_and_kb_when_router_calls_both_tools(
 ):
     """Regression test for a real bug: a compound question ("check my
     transactions and also tell me the fees") makes the router correctly issue
-    TWO tool calls (get_recent_transactions + search_knowledge_base) in one
+    TWO tool calls (get_orders + search_knowledge_base) in one
     response, but the old code only ever looked at tool_calls[0] and silently
     dropped the second - the customer only ever got half an answer."""
     alice = make_user("alice", "Alice")
@@ -48,11 +48,11 @@ def test_chat_merges_transaction_and_kb_when_router_calls_both_tools(
         names = _tool_names(tools)
         if not tools:
             return _FakeMessage(content="Transactions and fees question")  # title-gen call
-        if "get_recent_transactions" in names and "search_knowledge_base" in names:
+        if "get_orders" in names and "search_knowledge_base" in names:
             # The top-level routing call - the model correctly identifies both
             # tools are needed and issues both calls in one response.
             return _FakeMessage(
-                tool_calls=[_FakeToolCall("get_recent_transactions"), _FakeToolCall("search_knowledge_base")]
+                tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}'), _FakeToolCall("search_knowledge_base")]
             )
         if "resolve_transactions" in names:
             return _FakeMessage(tool_calls=[_FakeToolCall("no_single_match", '{"reason": "list_requested"}')])
@@ -95,8 +95,8 @@ def test_chat_shows_selection_cards_only_when_ambiguous(
     make_transaction(bob, "txn_b1")
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
-        if "get_recent_transactions" in _tool_names(tools):
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "get_orders" in _tool_names(tools):
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}')])
         if "resolve_transactions" in _tool_names(tools):
             # The model can't resolve one specific transaction from an explicit list request.
             return _FakeMessage(
@@ -125,8 +125,8 @@ def test_chat_resolves_specific_transaction_without_showing_cards(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_recent_transactions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}')])
         if "resolve_transactions" in names:
             return _FakeMessage(
                 tool_calls=[_FakeToolCall("resolve_transactions", f'{{"transaction_ids": ["{failed_txn.id}"]}}')]
@@ -157,8 +157,8 @@ def test_chat_explain_transaction_prompt_uses_the_customers_typed_question(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_recent_transactions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}')])
         if "resolve_transactions" in names:
             return _FakeMessage(
                 tool_calls=[_FakeToolCall("resolve_transactions", f'{{"transaction_ids": ["{failed_txn.id}"]}}')]
@@ -196,8 +196,8 @@ def test_chat_summarizes_multiple_resolved_transactions(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_recent_transactions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}')])
         if "resolve_transactions" in names:
             ids = [t1.id, t2.id, t3.id, "txn_bob_1"]
             return _FakeMessage(
@@ -232,8 +232,8 @@ def test_chat_falls_back_to_selection_if_resolved_id_not_in_users_list(
 
     def fake_chat_completion(messages, tools=None, tool_choice="auto", model=None, reasoning_effort=None):
         names = _tool_names(tools)
-        if "get_recent_transactions" in names:
-            return _FakeMessage(tool_calls=[_FakeToolCall("get_recent_transactions")])
+        if "get_orders" in names:
+            return _FakeMessage(tool_calls=[_FakeToolCall("get_orders", '{"type": "BUY"}')])
         if "resolve_transactions" in names:
             return _FakeMessage(
                 tool_calls=[_FakeToolCall("resolve_transactions", '{"transaction_ids": ["txn_someone_elses"]}')]

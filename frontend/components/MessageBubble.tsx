@@ -1,5 +1,6 @@
 import {
   ChatUIMessage,
+  OrdersOverviewData,
   RedemptionSelectionData,
   RedemptionTrackingData,
   TextAnswerData,
@@ -11,8 +12,10 @@ import { EscalateCard } from "./EscalateCard";
 import { ErrorBanner } from "./ErrorBanner";
 import { LoadingIndicator } from "./LoadingIndicator";
 import { MarkdownText } from "./MarkdownText";
+import { RedemptionOrderCard } from "./RedemptionOrderCard";
 import { RedemptionOrderSelector } from "./RedemptionOrderSelector";
 import { RedemptionTrackingDetail } from "./RedemptionTrackingDetail";
+import { TransactionCard } from "./TransactionCard";
 import { TransactionDetail } from "./TransactionDetail";
 import { TransactionSelector } from "./TransactionSelector";
 import { TransactionsSummary } from "./TransactionsSummary";
@@ -110,6 +113,30 @@ export function MessageBubble({ message, onSelectTransaction, onSelectRedemption
     return (
       <div className="flex flex-col items-start gap-2">
         <RedemptionTrackingDetail data={response.data as RedemptionTrackingData} message={response.message} />
+      </div>
+    );
+  }
+
+  if (response.type === "ORDERS_OVERVIEW") {
+    const data = response.data as OrdersOverviewData;
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <div className={`${BUBBLE} rounded-bl-sm bg-muted text-foreground`}>
+          <MarkdownText text={response.message} />
+        </div>
+        <div className="grid w-full grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {data.orders.map((card) =>
+            card.kind === "transaction" && card.transaction ? (
+              <TransactionCard key={card.transaction.id} transaction={card.transaction} onSelect={onSelectTransaction} />
+            ) : card.redemption ? (
+              <RedemptionOrderCard
+                key={card.redemption.order_ref}
+                order={card.redemption}
+                onSelect={onSelectRedemptionOrder}
+              />
+            ) : null
+          )}
+        </div>
       </div>
     );
   }

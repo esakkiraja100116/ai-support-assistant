@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     tracking_retry_backoff_seconds: float = 0.3
     tracking_circuit_breaker_threshold: int = 3
     tracking_circuit_breaker_cooldown_seconds: float = 30.0
+    redemption_track_rate_limit: int = 20
+    redemption_track_rate_limit_window_seconds: int = 60
+    orders_default_limit: int = 3
+    orders_list_all_limit: int = 10
     customer_display_timezone: str = "Asia/Kolkata"
 
     # OpenTelemetry tracing (Grafana Cloud). Empty endpoint = tracing stays a

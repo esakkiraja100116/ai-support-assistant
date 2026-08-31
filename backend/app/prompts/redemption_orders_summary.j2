@@ -1,0 +1,11 @@
+{% include "base_prompt.j2" %}
+
+The customer asked: "{{ original_question }}"
+
+There are exactly {{ orders|length }} matching order(s) below - if they asked "how many", the answer is {{ orders|length }}, stated as-is. Never derive this count yourself by re-counting, summing quantities, or any other calculation - {{ orders|length }} is already the correct, final number.
+
+Using ONLY the following JSON redemption/delivery order records, answer their question, covering every record listed below. Each JSON object is one separate order. `quantity` is the weight in grams of that one order - never sum it to answer an item-count question; only mention weight/grams if they specifically ask about weight or total quantity, and even then also give the per-order breakdown.
+
+If they asked which ones match a status or product, name each matching order by product and status. Do not invent a status, quantity, product, or AWB availability that is not present in the JSON.
+
+{{ records_json }}

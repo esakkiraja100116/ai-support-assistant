@@ -1,6 +1,6 @@
 id,category,question,expected_type,expected_contains,notes,actual_type,actual_message,passed,fail_reason
 1,faq_single,How do I sell my gold?,TEXT_ANSWER,Portfolio > Sell,Article 1,TEXT_ANSWER,"Open the app, go to Portfolio > Sell, choose the product and quantity, and confirm at the live market rate. Funds are credited to your linked bank account after settlement.",True,
-2,faq_single,What's the process to buy gold on this platform?,TEXT_ANSWER,GOLD24;UPI,Article 2,TEXT_ANSWER,"To buy gold on the platform, go to Buy on the home screen, choose either GOLD24 or GOLD22, enter the amount or grams you want to purchase, and pay via UPI, card, or net banking. Your holdings will update once the payment is confirmed.",True,
+2,faq_single,What's the process to buy gold on this platform?,TEXT_ANSWER,GOLD24;UPI,Article 2,TEXT_ANSWER,"To buy gold on this platform, go to the Buy section on the home screen, choose between GOLD24 (99.9% pure gold) or GOLD22 (about 91.6% pure gold), enter an amount or grams you wish to purchase, and proceed to pay via UPI, card, or net banking. Your gold holdings will update once the payment is confirmed.",True,
 3,faq_single,How does the recurring savings plan work?,TEXT_ANSWER,weekly;monthly,Article 3,TEXT_ANSWER,"A recurring (systematic) savings plan automatically buys a fixed amount of gold on a schedule you choose (weekly or monthly) from your saved payment method, helping you average your purchase price over time.",True,
 4,faq_single,What documents do I need for KYC?,TEXT_ANSWER,photo ID;proof of address,Article 4,TEXT_ANSWER,"We require a government photo ID (passport, driver's license, or national ID) and a proof of address dated within the last 3 months to complete KYC verification.",True,
 5,faq_single,Why do transactions sometimes fail?,TEXT_ANSWER,insufficient funds;declined,Article 5,TEXT_ANSWER,"Transactions commonly fail due to insufficient funds, a declined card, bank server timeouts, or KYC verification not yet being complete. Check the failure reason shown on the transaction for specifics.",True,
@@ -35,7 +35,7 @@ Open the app, go to Portfolio > Sell, choose the product and quantity, and confi
 Payouts to your linked bank account are typically processed within 1-2 business days after a sell order settles.",True,
 23,faq_combined,"How does recurring savings work, and how do I cancel it?",TEXT_ANSWER,weekly;Cancel,Articles 3+10,TEXT_ANSWER,"A recurring (systematic) savings plan automatically buys a fixed amount of gold on a schedule you choose (weekly or monthly) from your saved payment method, helping you average your purchase price over time.
 
-Go to Recurring Plans in your account settings, select the active plan, and choose Cancel. Any already-purchased gold remains in your portfolio.",True,
+To cancel a recurring savings plan, go to Recurring Plans in your account settings, select the active plan, and choose Cancel. Any already-purchased gold remains in your portfolio.",True,
 24,faq_combined,"Is my investment insured, and what happens if markets are closed?",TEXT_ANSWER,insur;queued,Articles 17+15,TEXT_ANSWER,"Gold held in our vaults is covered by comprehensive insurance against theft and physical loss; this does not cover market price fluctuations.
 
 Orders placed outside trading hours are queued and executed at the next available live market rate once trading resumes.",True,
@@ -43,116 +43,110 @@ Orders placed outside trading hours are queued and executed at the next availabl
 
 Go to Settings > Payment Methods > Bank Accounts, add the new account, and verify it with a small test deposit before setting it as your default payout account.",True,
 26,transaction,Can you show me my recent transactions?,TRANSACTION_SELECTION,txn_1007,list of all 7,TRANSACTION_SELECTION,Here are your recent transactions:,True,
-27,transaction,Why did my last transaction fail?,TRANSACTION_EXPLANATION,Insufficient funds,txn_1007,TRANSACTION_EXPLANATION,"Your last transaction failed due to ""Insufficient funds in linked account."" If you need further assistance, feel free to ask!",True,
-28,transaction,What happened to my first transaction?,TRANSACTION_EXPLANATION,declined,txn_1001,TRANSACTION_EXPLANATION,"Your first transaction (Transaction ID: txn_1001) failed. The status is ""FAILED"" because the payment gateway declined your credit card. It was created on August 23, 2026.",True,
-29,transaction,Is there a pending transaction on my account?,TRANSACTION_EXPLANATION,PENDING,txn_1005,TRANSACTION_EXPLANATION,"Yes, you have a pending transaction on your account. It is a buy transaction for GOLD22 with an amount of $3200.00. The payment method used was Net Banking, and it was created on August 27, 2026.",True,
-30,transaction,How many of my transactions were successful?,TRANSACTION_SUMMARY,3,3 SUCCESS txns,TRANSACTION_SUMMARY,"You have had a total of 3 successful transactions. Here are the details:
+27,transaction,Why did my last transaction fail?,TRANSACTION_EXPLANATION,Insufficient funds,txn_1007,TRANSACTION_EXPLANATION,"Your last transaction failed due to ""Insufficient funds in linked account.""",True,
+28,transaction,What happened to my first transaction?,TRANSACTION_EXPLANATION,declined,txn_1001,TRANSACTION_SELECTION,Which transaction are you referring to?,False,"expected type TRANSACTION_EXPLANATION, got TRANSACTION_SELECTION"
+29,transaction,Is there a pending transaction on my account?,TRANSACTION_EXPLANATION,PENDING,txn_1005,TRANSACTION_EXPLANATION,"Yes, there is a pending transaction on your account. It is a BUY transaction for Gold22 with an amount of 3200.0. The status of this transaction is ""PENDING"".",True,
+30,transaction,How many of my transactions were successful?,TRANSACTION_SUMMARY,3,3 SUCCESS txns,TRANSACTION_SUMMARY,"You had a total of 3 transactions, and all of them were successful. Here are the details:
 
-1. **Transaction ID:** txn_1004
-   - **Type:** RECURRING_BUY
-   - **Product:** GOLD24
-   - **Amount:** 1000.0
-   - **Payment Method:** UPI
-   - **Status:** SUCCESS
+1. Transaction ID: txn_1004
+   - Type: RECURRING_BUY
+   - Product: GOLD24
+   - Amount: 1000.0
+   - Status: SUCCESS
+   - Payment Method: UPI
 
-2. **Transaction ID:** txn_1003
-   - **Type:** SELL
-   - **Product:** GOLD22
-   - **Amount:** 1800.0
-   - **Payment Method:** Net Banking
-   - **Status:** SUCCESS
+2. Transaction ID: txn_1003
+   - Type: SELL
+   - Product: GOLD22
+   - Amount: 1800.0
+   - Status: SUCCESS
+   - Payment Method: Net Banking
 
-3. **Transaction ID:** txn_1002
-   - **Type:** BUY
-   - **Product:** GOLD24
-   - **Amount:** 2500.0
-   - **Payment Method:** UPI
-   - **Status:** SUCCESS
+3. Transaction ID: txn_1002
+   - Type: BUY
+   - Product: GOLD24
+   - Amount: 2500.0
+   - Status: SUCCESS
+   - Payment Method: UPI
 
-All of these transactions were completed successfully.",True,
-31,transaction,How many of my transactions failed?,TRANSACTION_SUMMARY,2,2 FAILED txns,TRANSACTION_SUMMARY,"You have a total of 2 failed transactions. 
+All transactions were completed successfully with no failure reasons.",True,
+31,transaction,How many of my transactions failed?,TRANSACTION_SUMMARY,2,2 FAILED txns,TRANSACTION_SUMMARY,"You have two transactions that failed. Here are the details:
 
-Here are the details:
+1. Transaction ID: txn_1007
+   - Type: RECURRING_BUY
+   - Product: GOLD22
+   - Amount: $1000.00
+   - Status: FAILED
+   - Failure Reason: ""Insufficient funds in linked account""
+   - Payment Method: Net Banking
 
-1. **Transaction ID:** txn_1007
-   - **Type:** RECURRING_BUY
-   - **Product:** GOLD22
-   - **Amount:** 1000.0
-   - **Status:** FAILED
-   - **Failure Reason:** Insufficient funds in linked account
-   - **Payment Method:** Net Banking
+2. Transaction ID: txn_1001
+   - Type: BUY
+   - Product: GOLD24
+   - Amount: $5000.00
+   - Status: FAILED
+   - Failure Reason: ""Payment gateway declined the card""
+   - Payment Method: Credit Card
 
-2. **Transaction ID:** txn_1001
-   - **Type:** BUY
-   - **Product:** GOLD24
-   - **Amount:** 5000.0
-   - **Status:** FAILED
-   - **Failure Reason:** Payment gateway declined the card
-   - **Payment Method:** Credit Card
-
-If you have any further questions regarding your transactions, feel free to ask!",True,
-32,transaction,What transaction was refunded to me?,TRANSACTION_EXPLANATION,REFUNDED,txn_1006,TRANSACTION_EXPLANATION,"The transaction that was refunded to you was a sale of 4100.0 worth of GOLD24. It was refunded due to the order being cancelled after a settlement delay. The payment method used was your Wallet. The refund was processed on August 28, 2026.",True,
+Both transactions were unsuccessful due to the reasons stated above.",True,
+32,transaction,What transaction was refunded to me?,TRANSACTION_EXPLANATION,REFUNDED,txn_1006,TRANSACTION_EXPLANATION,"The transaction that was refunded to you is for the sale of GOLD24, with an amount of 4100.0. It was refunded due to the order being cancelled after a settlement delay. The payment method used was your Wallet. The status of the transaction is ""REFUNDED,"" and it was created on August 28, 2026.",True,
 33,transaction,How much did I pay for my last successful purchase?,TRANSACTION_EXPLANATION,1000,txn_1004,TRANSACTION_EXPLANATION,You paid 1000.0 for your last successful purchase.,True,
-34,transaction,What payment method did I use for my failed transactions?,TRANSACTION_SUMMARY,Net Banking;Credit Card,txn_1007+txn_1001,TRANSACTION_SUMMARY,"You had two failed transactions. Here are the details of the payment methods used for each:
+34,transaction,What payment method did I use for my failed transactions?,TRANSACTION_SUMMARY,Net Banking;Credit Card,txn_1007+txn_1001,TRANSACTION_SUMMARY,"You have two failed transactions, and here are the payment methods used for each:
 
-1. For the transaction with ID `txn_1007`, the payment method was **Net Banking**. The reason for failure was ""Insufficient funds in linked account"".
+1. **Transaction ID: txn_1007**
+   - **Payment Method:** Net Banking
+   - **Failure Reason:** Insufficient funds in linked account
 
-2. For the transaction with ID `txn_1001`, the payment method was **Credit Card**. The reason for failure was ""Payment gateway declined the card"".
+2. **Transaction ID: txn_1001**
+   - **Payment Method:** Credit Card
+   - **Failure Reason:** Payment gateway declined the card
 
 If you have any further questions or need assistance, feel free to ask!",True,
 35,transaction,Tell me about my sell transactions.,TRANSACTION_SUMMARY,REFUNDED;SUCCESS,txn_1006+txn_1003,TRANSACTION_SUMMARY,"You have two sell transactions:
 
-1. **Transaction ID:** txn_1006
+1. **Transaction ID:** txn_1003
+   - **Product:** GOLD22
+   - **Amount:** 1800.0
+   - **Status:** SUCCESS
+   - **Payment Method:** Net Banking
+   - **Created At:** August 25, 2026
+
+2. **Transaction ID:** txn_1006
    - **Product:** GOLD24
-   - **Amount:** $4100.00
+   - **Amount:** 4100.0
    - **Status:** REFUNDED
    - **Failure Reason:** Order cancelled after settlement delay
    - **Payment Method:** Wallet
    - **Created At:** August 28, 2026
 
-2. **Transaction ID:** txn_1003
-   - **Product:** GOLD22
-   - **Amount:** $1800.00
-   - **Status:** SUCCESS
-   - **Failure Reason:** None (successful transaction)
-   - **Payment Method:** Net Banking
-   - **Created At:** August 25, 2026
+If you have any other questions or need further assistance, feel free to ask!",True,
+36,transaction,What's the total amount from my successful transactions?,TRANSACTION_SUMMARY,5300,1000+1800+2500,TRANSACTION_SUMMARY,"Your total amount from successful transactions is calculated as follows:
 
-If you have any further questions about these transactions, feel free to ask!",True,
-36,transaction,What's the total amount from my successful transactions?,TRANSACTION_SUMMARY,5300,1000+1800+2500,TRANSACTION_SUMMARY,"The total amount from your successful transactions is calculated as follows:
+1. Transaction ID: txn_1004 (RECURRING_BUY) - Amount: $1000.0
+2. Transaction ID: txn_1003 (SELL) - Amount: $1800.0
+3. Transaction ID: txn_1002 (BUY) - Amount: $2500.0
 
-1. Transaction ID txn_1004: $1000.0 (RECURRING_BUY)
-2. Transaction ID txn_1003: $1800.0 (SELL)
-3. Transaction ID txn_1002: $2500.0 (BUY)
+Total Amount = $1000.0 + $1800.0 + $2500.0 = **$5300.0**. 
 
-Total: $1000.0 + $1800.0 + $2500.0 = $5300.0
-
-So, the total amount from your successful transactions is $5300.0.",True,
+If you have any further questions, feel free to ask!",True,
 37,transaction,On what date was my most recent transaction created?,TRANSACTION_EXPLANATION,Aug,txn_1007,TRANSACTION_EXPLANATION,"Your most recent transaction was created on August 29, 2026.",True,
-38,transaction,What was my very first transaction on this platform?,TRANSACTION_EXPLANATION,5000,txn_1001,TRANSACTION_EXPLANATION,"Your very first transaction on this platform was a purchase of GOLD24 for an amount of 5000.0. However, this transaction had a status of ""FAILED"" because the payment gateway declined the card. The transaction was created on August 23, 2026, and the payment method used was a Credit Card.",True,
+38,transaction,What was my very first transaction on this platform?,TRANSACTION_EXPLANATION,5000,txn_1001,TRANSACTION_EXPLANATION,"Your very first transaction on this platform was a purchase of GOLD24 for an amount of $5000.00. However, the transaction status was FAILED due to the reason that the payment gateway declined the card. This transaction was initiated on August 23, 2026. You used a Credit Card as the payment method.",True,
 39,transaction,How much gold have I bought successfully in GOLD24?,TRANSACTION_SUMMARY,2500,txn_1002+txn_1004,TRANSACTION_SUMMARY,"You have successfully bought a total of 3,500.0 units of gold in GOLD24. This includes:
 
-1. **Transaction ID: txn_1004**
-   - Amount: 1000.0
-   - Status: SUCCESS
-   - Payment Method: UPI
+1. 1,000.0 units from a recurring buy (txn_1004) on August 26, 2026.
+2. 2,500.0 units from a one-time buy (txn_1002) on August 24, 2026. 
 
-2. **Transaction ID: txn_1002**
-   - Amount: 2500.0
-   - Status: SUCCESS
-   - Payment Method: UPI
-
-The total amount from these transactions is 1,000.0 + 2,500.0 = 3,500.0 units of gold.",True,
-40,transaction,What's the status of transaction txn_1005?,TRANSACTION_EXPLANATION,PENDING,txn_1005,TRANSACTION_EXPLANATION,The status of transaction txn_1005 is PENDING.,True,
+Both transactions were successful.",True,
+40,transaction,What's the status of transaction txn_1005?,TRANSACTION_EXPLANATION,PENDING,txn_1005,TRANSACTION_EXPLANATION,"The status of transaction txn_1005 is ""PENDING"".",True,
 41,combined,Can you check my transactions and also tell me the fees you charge?,TEXT_ANSWER_OR_TRANSACTION,0.5%-1%;txn_1007,transaction + FAQ 7,TRANSACTION_SELECTION,"Here are your recent transactions:
 
 We charge a small spread on buy/sell orders (typically 0.5%-1%) plus applicable payment processing fees; there are no separate account maintenance fees.",True,
 42,combined,Can you please check my transaction and assist me to buy the gold?,TEXT_ANSWER_OR_TRANSACTION,txn_1007;GOLD24,transaction + FAQ 2,TRANSACTION_SELECTION,"Which transaction are you referring to?
 
-To buy gold, go to Buy on the home screen, choose GOLD24 or GOLD22, enter an amount or grams, and pay via UPI, card, or net banking. Your holdings update once payment is confirmed.",True,
-43,combined,"Why did my last transaction fail, and what KYC documents do I need to avoid that next time?",TEXT_ANSWER_OR_TRANSACTION,Insufficient funds;proof of address,transaction + FAQ 4,TRANSACTION_EXPLANATION,"Your last transaction, which was a recurring buy of 1000.0 worth of GOLD22, failed due to ""Insufficient funds in linked account."" To avoid this issue next time, ensure that there are sufficient funds in your linked account before initiating a transaction.
+Go to Buy on the home screen, choose GOLD24 or GOLD22, enter an amount or grams, and pay via UPI, card, or net banking. Your holdings update once payment is confirmed.",True,
+43,combined,"Why did my last transaction fail, and what KYC documents do I need to avoid that next time?",TEXT_ANSWER_OR_TRANSACTION,Insufficient funds;proof of address,transaction + FAQ 4,TRANSACTION_EXPLANATION,"Your last transaction (id: txn_1007) failed due to ""Insufficient funds in linked account"" when you attempted to use Net Banking on August 29, 2026.
 
-Regarding KYC documents, typically, you may need to provide identification documents such as a government-issued ID (like a passport or driver's license), proof of address (like a utility bill or bank statement), and possibly additional documents depending on your local regulations. It’s best to check with our platform for the specific KYC requirements based on your account type.
+To avoid this issue in the future, please ensure your linked account has sufficient funds for the transaction. Regarding KYC documents, typically you may need to provide identification documents such as a government-issued ID, proof of address, and possibly tax information, depending on your local regulations. Make sure to check the specific requirements on our platform to ensure you're fully prepared for your next transaction.
 
 Transactions commonly fail due to insufficient funds, a declined card, bank server timeouts, or KYC verification not yet being complete. Check the failure reason shown on the transaction for specifics.
 
@@ -160,62 +154,58 @@ We require a government photo ID (passport, driver's license, or national ID) an
 44,combined,Show me my recent transactions and explain how the recurring savings plan works.,TEXT_ANSWER_OR_TRANSACTION,txn_1007;weekly,transaction + FAQ 3,TRANSACTION_SELECTION,"Here are your recent transactions:
 
 A recurring (systematic) savings plan automatically buys a fixed amount of gold on a schedule you choose (weekly or monthly) from your saved payment method, helping you average your purchase price over time.",True,
-45,combined,"I want to sell gold - can you tell me how, and also check if my last sell went through?",TEXT_ANSWER_OR_TRANSACTION,Portfolio > Sell;REFUNDED,FAQ 1 + transaction,TRANSACTION_EXPLANATION,"Your last sell transaction for 4100.0 of GOLD24 did not go through; it has the status ""REFUNDED"" because the order was cancelled after a settlement delay. The payment method was via Wallet.
+45,combined,"I want to sell gold - can you tell me how, and also check if my last sell went through?",TEXT_ANSWER_OR_TRANSACTION,Portfolio > Sell;REFUNDED,FAQ 1 + transaction,TRANSACTION_EXPLANATION,"Your last sale attempt for 4100.0 units of GOLD24 did not go through; it has a status of ""REFUNDED"" due to the order being cancelled after a settlement delay. The payment method used was ""Wallet.""
 
-To sell gold, you can follow these steps:
+To sell gold, you typically need to follow these steps: 
+
 1. Log in to your account on the platform.
-2. Navigate to the section for selling gold.
-3. Select the amount of gold you want to sell.
-4. Choose your preferred payment method.
-5. Confirm the transaction, and you should receive a confirmation once it goes through.
+2. Navigate to the ""Sell"" section.
+3. Enter the amount of gold you wish to sell.
+4. Confirm the details and submit your sale request.
 
-Open the app, go to Portfolio > Sell, choose the product and quantity, and confirm at the live market rate. Funds are credited to your linked bank account after settlement.",True,
-46,combined,"What's my pending transaction status, and how long do payouts usually take?",TEXT_ANSWER_OR_TRANSACTION,PENDING;1-2 business days,transaction + FAQ 6,TRANSACTION_EXPLANATION,"Your pending transaction status is ""PENDING"" for the amount of 3200.0. 
+If you have any questions or need further assistance with the selling process, feel free to ask!
 
-Regarding payouts, they typically take a few business days to process, but the exact duration can vary based on the payment method used. Since you used ""Net Banking,"" it usually takes around 2-3 business days.
+To sell your gold, open the app, go to Portfolio > Sell, choose the product and quantity, and confirm at the live market rate. Funds are credited to your linked bank account after settlement.",True,
+46,combined,"What's my pending transaction status, and how long do payouts usually take?",TEXT_ANSWER_OR_TRANSACTION,PENDING;1-2 business days,transaction + FAQ 6,TRANSACTION_EXPLANATION,"Your pending transaction status is currently ""PENDING."" As for payouts, they typically take a certain period depending on the payment method, but specific duration details are not provided in the transaction record. Please check the platform's guidelines for more information on payout timelines.
 
 Payouts to your linked bank account are typically processed within 1-2 business days after a sell order settles.",True,
 47,combined,Can you tell me about the referral program and show me my transaction history?,TEXT_ANSWER_OR_TRANSACTION,referral code;txn_1007,FAQ 12 + transaction,TRANSACTION_SELECTION,"Here are your recent transactions:
 
 Yes - share your referral code from the Rewards tab; both you and your friend receive bonus gold credit once they complete their first purchase.",True,
-48,combined,"My last transaction failed - why, and what fees will I pay next time?",TEXT_ANSWER_OR_TRANSACTION,Insufficient funds;0.5%-1%,transaction + FAQ 7,TRANSACTION_EXPLANATION,"Your last transaction (ID: txn_1007) failed because of ""Insufficient funds in linked account."" It was a recurring buy for the product GOLD22 with an amount of $1000, using Net Banking as your payment method.
+48,combined,"My last transaction failed - why, and what fees will I pay next time?",TEXT_ANSWER_OR_TRANSACTION,Insufficient funds;0.5%-1%,transaction + FAQ 7,TRANSACTION_EXPLANATION,"Your last transaction for the amount of $1000.00 failed due to ""Insufficient funds in linked account."" 
 
-Regarding fees for your next transaction, the specific fee structure isn't detailed in the provided transaction record. However, you should check our platform's fee policy or consider potential fees associated with your payment method (Net Banking) for your next transaction.
+Regarding fees for your next transaction, unfortunately, the provided details do not specify any fees associated with future transactions. You may want to check your account settings or our fees section on the platform for more information about transaction fees.
 
 Transactions commonly fail due to insufficient funds, a declined card, bank server timeouts, or KYC verification not yet being complete. Check the failure reason shown on the transaction for specifics.
 
 We charge a small spread on buy/sell orders (typically 0.5%-1%) plus applicable payment processing fees; there are no separate account maintenance fees.",True,
-49,combined,"Is my gold insured, and did my last purchase succeed?",TEXT_ANSWER_OR_TRANSACTION,insur;PENDING,FAQ 17 + transaction,TRANSACTION_EXPLANATION,"Your last purchase of 3200.0 worth of GOLD22 is currently in ""PENDING"" status, which means it has not yet succeeded. As for insurance, the JSON transaction record does not provide information about whether your gold is insured.
+49,combined,"Is my gold insured, and did my last purchase succeed?",TEXT_ANSWER_OR_TRANSACTION,insur;PENDING,FAQ 17 + transaction,TRANSACTION_EXPLANATION,"Your last purchase, which was a recurring buy of 1000.0 of GOLD22, did not succeed. The status is marked as ""FAILED"" due to ""Insufficient funds in linked account."" As for whether your gold is insured, I do not have that information. Would you like assistance with anything else?
 
-Gold held in our vaults is covered by comprehensive insurance against theft and physical loss; this does not cover market price fluctuations.",True,
-50,combined,"Can I get physical delivery, and what's the status of my most recent order?",TEXT_ANSWER_OR_TRANSACTION,delivery fee;FAILED,FAQ 14 + transaction,TEXT_ANSWER,"Yes, eligible holdings above the minimum delivery threshold can be redeemed as physical gold coins or bars, shipped securely to your verified address for a delivery fee.
+Gold held in our vaults is covered by comprehensive insurance against theft and physical loss; this does not cover market price fluctuations.",False,missing: PENDING
+50,combined,"Can I get physical delivery, and what's the status of my most recent order?",TEXT_ANSWER_OR_TRANSACTION,delivery fee;FAILED,FAQ 14 + transaction,TRANSACTION_EXPLANATION,"The status of your most recent order (txn_1007) is ""FAILED"" due to ""Insufficient funds in linked account."" Regarding physical delivery, it typically depends on the specific terms of your order. Since your recent order did not process successfully, there will be no delivery.
 
-Yes, you can get physical delivery of your order. 
-
-As for the status of your most recent order (Aura Gold Coin), it is currently marked as ""ATTEMPTED."" The latest event shows that delivery was attempted on August 27, 2026, at 3:50 PM UTC in Pune, but the delivery could not be completed because the customer was unavailable. Prior to that, the order was in transit and arrived at a local facility in Pune on the same day at 7:30 AM UTC.",False,missing: FAILED
-51,out_of_scope,How much gold do I currently own in total?,TEXT_ANSWER_GROUNDED,alice,"capability gap - portfolio value, not tracked",TEXT_ANSWER,"I'm sorry, Alice, but I don't have access to that information. However, I can help you with your recent transactions or any general questions about buying and selling gold. Is there something specific you would like assistance with?",True,
-52,out_of_scope,What's my current account balance?,TEXT_ANSWER_GROUNDED,alice,"capability gap - account balance, not tracked",TEXT_ANSWER,"I can't provide your current account balance, Alice. However, I can help you with recent transactions or any general questions about the platform. Let me know how I can assist you!",True,
-53,out_of_scope,What's the live gold price per gram right now?,TEXT_ANSWER_GROUNDED,alice,"capability gap - real-time price, not tracked",TEXT_ANSWER,"I'm sorry, Alice Nguyen, but I can only assist you with questions related to buying or selling gold on our platform and your account support. If you have any queries regarding those topics, feel free to ask!",True,
+Yes, eligible holdings above the minimum delivery threshold can be redeemed as physical gold coins or bars, shipped securely to your verified address for a delivery fee.",True,
+51,out_of_scope,How much gold do I currently own in total?,TEXT_ANSWER_GROUNDED,alice,"capability gap - portfolio value, not tracked",TEXT_ANSWER,"I'm sorry, Alice Nguyen, but I can't help with your current total gold holdings. However, I can assist you with your recent transaction records or any general support questions about buying or selling gold. How can I help you today?",True,
+52,out_of_scope,What's my current account balance?,TEXT_ANSWER_GROUNDED,alice,"capability gap - account balance, not tracked",TEXT_ANSWER,"I'm sorry, Alice Nguyen, but I can't provide information about your current account balance. However, I can help you with your recent transaction records or any questions about buying or selling gold. How can I assist you further?",True,
+53,out_of_scope,What's the live gold price per gram right now?,TEXT_ANSWER_GROUNDED,alice,"capability gap - real-time price, not tracked",TEXT_ANSWER,"I don't have enough information in our knowledge base to answer that. Could you rephrase, or ask about something else?",False,"expected grounded=True (respond_directly), got grounded=False (KB path was used instead)"
 54,out_of_scope,Hi,TEXT_ANSWER_GROUNDED,alice,pure greeting,TEXT_ANSWER,"Hello, Alice Nguyen! How can I assist you today with buying or selling gold?",True,
-55,out_of_scope,Good morning!,TEXT_ANSWER_GROUNDED,alice,pure greeting,TEXT_ANSWER,"Good morning, Alice Nguyen! If you have any questions about buying or selling gold, feel free to ask!",True,
-56,out_of_scope,Thank you so much for your help!,TEXT_ANSWER_GROUNDED,alice,pure small talk,TEXT_ANSWER,"You're welcome, Alice Nguyen! If you have any questions about buying or selling gold, feel free to ask!",True,
-57,out_of_scope,How are you doing today?,TEXT_ANSWER_GROUNDED,alice,pure small talk,TEXT_ANSWER,"I'm here to assist you, Alice Nguyen! If you have any questions about buying or selling gold, feel free to ask.",True,
-58,out_of_scope,What's the weather like today?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform,TEXT_ANSWER,"I'm here to help with questions about buying and selling gold, Alice. If you have any support questions regarding that, feel free to ask!",True,
-59,out_of_scope,Can you recommend a good stock to invest in?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform,TEXT_ANSWER,"I'm sorry, Alice, but I can only help you with buying and selling gold or supporting your account here. If you have any questions related to that, feel free to ask!",True,
-60,out_of_scope,What's the capital of France?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform,TEXT_ANSWER,"I'm here to help you with buying or selling gold, Alice. If you have any questions about our platform or transactions, feel free to ask!",True,
+55,out_of_scope,Good morning!,TEXT_ANSWER_GROUNDED,alice,pure greeting,TEXT_ANSWER,"Good morning, Alice Nguyen! How can I assist you today with buying or selling gold?",True,
+56,out_of_scope,Thank you so much for your help!,TEXT_ANSWER_GROUNDED,alice,pure small talk,TEXT_ANSWER,"You're welcome, Alice! If you have any questions about buying or selling gold, feel free to ask!",True,
+57,out_of_scope,How are you doing today?,TEXT_ANSWER_GROUNDED,alice,pure small talk,TEXT_ANSWER,"I'm here to assist you, Alice Nguyen! If you have any questions about buying or selling gold, feel free to ask!",True,
+58,out_of_scope,What's the weather like today?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform,TEXT_ANSWER,"I'm sorry, Alice Nguyen, but I can only assist with questions related to buying and selling gold. If you have any inquiries about our platform or your transactions, please feel free to ask!",True,
+59,out_of_scope,Can you recommend a good stock to invest in?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform,TEXT_ANSWER,"I'm sorry, Alice, but I can only help with questions related to buying and selling gold on this platform. If you have any questions about that, feel free to ask!",True,
+60,out_of_scope,What's the capital of France?,TEXT_ANSWER_GROUNDED,alice,unrelated to platform,TEXT_ANSWER,"I'm here to help you with buying and selling gold, Alice Nguyen. If you have any questions about our gold platform, feel free to ask!",True,
 61,redemption,Where is my order?,REDEMPTION_SELECTION,track,ambiguous - 4 ongoing redemption orders match,REDEMPTION_SELECTION,Which order would you like to track?,True,
 62,redemption,Track my gold coin,REDEMPTION_SELECTION,track,ambiguous - 2 ongoing coin orders match (IN_TRANSIT and ATTEMPTED),REDEMPTION_SELECTION,Which order would you like to track?,True,
 63,redemption,Has my gold bar shipped yet?,REDEMPTION_SELECTION,track,ambiguous - 2 ongoing bar orders match (OUT_FOR_DELIVERY and PROCESSING),REDEMPTION_SELECTION,Which order would you like to track?,True,
-64,redemption,Track my Aura Gold Bar that's currently out for delivery,REDEMPTION_TRACKING,out_for_delivery,single match via status mentioned in the question itself,REDEMPTION_TRACKING,"Your Aura Gold Bar is currently **OUT FOR DELIVERY**. The most recent status was updated on **August 29, 2026, at 09:05 AM UTC**, indicating that it is in **New Delhi**. 
+64,redemption,Track my Aura Gold Bar that's currently out for delivery,REDEMPTION_TRACKING,out_for_delivery,single match via status mentioned in the question itself,REDEMPTION_TRACKING,"Your Aura Gold Bar is currently **OUT FOR DELIVERY**. The most recent location is **New Delhi**, where it was last noted at **09:05 AM UTC on August 29, 2026**. 
 
-Recent history shows that it arrived at the local facility earlier the same day at **06:40 AM UTC** before being marked as out for delivery.",True,
-65,redemption,Track my gold coin that was already attempted for delivery,REDEMPTION_TRACKING,attempted,single match via status mentioned in the question itself,REDEMPTION_TRACKING,"Your gold coin, the Aura Gold Coin, has an attempted delivery status. The most recent delivery attempt was on August 27, 2026, at 15:50 UTC, but it was unsuccessful because the customer was unavailable. The current location of your order is Pune. 
-
-Previously, the coin arrived at the local facility in Pune on the same day at 07:30 UTC before the attempted delivery.",True,
+Recently, it arrived at the local facility in New Delhi at **06:40 AM UTC** on the same day before it was marked as out for delivery.",True,
+65,redemption,Track my gold coin that was already attempted for delivery,REDEMPTION_TRACKING,attempted,single match via status mentioned in the question itself,REDEMPTION_TRACKING,"Your gold coin, the Aura Gold Coin, is currently in the status ""ATTEMPTED"" for delivery. The most recent location is Pune, where an attempt was made to deliver it on August 27, 2026, at 15:50 UTC. The delivery was attempted but was unsuccessful because the customer was unavailable at that time. Prior to that, it arrived at a local facility in Pune earlier the same day at 07:30 UTC.",True,
 66,redemption,Is my Aura Gold Bar still being processed?,REDEMPTION_TRACKING,processing,single match - only one bar has no AWB yet (still processing),REDEMPTION_TRACKING,Your order is still being processed and doesn't have tracking information yet.,True,
-67,redemption,What is the tracking status for my in-transit gold coin?,REDEMPTION_TRACKING,in_transit,single match via status; also tests the tool never asks the customer to type an AWB themselves,REDEMPTION_TRACKING,"Your Aura Gold Coin is currently **IN TRANSIT**. The most recent location is **Bengaluru - South**, where it arrived at the hub on **August 29, 2026, at 08:07 UTC**. 
+67,redemption,What is the tracking status for my in-transit gold coin?,REDEMPTION_TRACKING,in_transit,single match via status; also tests the tool never asks the customer to type an AWB themselves,REDEMPTION_TRACKING,"The current tracking status for your Aura Gold Coin is ""IN_TRANSIT"". It is currently located in ""Bengaluru - South"". The most recent event indicates that it arrived at the hub in Bengaluru - South on August 29, 2026, at 08:07 AM UTC. 
 
-Recently, it was dispatched from **Chennai** on **August 28, 2026, at 10:15 UTC** before arriving in Bengaluru.",True,
+Recently, the coin was despatched from Chennai on August 28, 2026, at 10:15 AM UTC.",True,
 68,out_of_scope,Can I cancel my redemption order?,TEXT_ANSWER_GROUNDED,alice,no cancel capability exists - tests correct decline vs wrongly invoking the tracking tool,TEXT_ANSWER,"I don't have enough information in our knowledge base to answer that. Could you rephrase, or ask about something else?",False,"expected grounded=True (respond_directly), got grounded=False (KB path was used instead)"
 69,out_of_scope,Can I get a refund for my delivered gold order?,TEXT_ANSWER_GROUNDED,alice,no refund capability via chat; also the referenced order is DELIVERED (excluded from ongoing),TEXT_ANSWER,"I don't have enough information in our knowledge base to answer that. Could you rephrase, or ask about something else?",False,"expected grounded=True (respond_directly), got grounded=False (KB path was used instead)"
-70,out_of_scope,Can you track my Amazon package from last week?,TEXT_ANSWER_GROUNDED,alice,"unrelated to the platform, despite superficially sounding like a tracking request",TEXT_ANSWER,"I'm sorry, Alice, but I can only help with buying and selling gold or support related to your account here. If you have any questions about those topics, feel free to ask!",True,
+70,out_of_scope,Can you track my Amazon package from last week?,TEXT_ANSWER_GROUNDED,alice,"unrelated to the platform, despite superficially sounding like a tracking request",TEXT_ANSWER,"I'm sorry, Alice, but I can only help with inquiries related to buying or selling gold on this platform. If you have any questions about that, feel free to ask!",True,

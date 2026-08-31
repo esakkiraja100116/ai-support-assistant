@@ -89,7 +89,7 @@ def test_ongoing_redemptions_excludes_genuinely_unrecognized_status(
     alice = make_user("alice", "Alice")
     order = make_redemption_order(alice, "txn_weird", status="IN_TRANSIT", awb_number="PRO_WEIRD")
     db_session.execute(
-        text("UPDATE redemption_orders SET txn_status = 'BRAND_NEW_STATUS' WHERE id = :id"),
+        text("UPDATE transactions SET status = 'BRAND_NEW_STATUS' WHERE id = :id"),
         {"id": order.id},
     )
     db_session.commit()
